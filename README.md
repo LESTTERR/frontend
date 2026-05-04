@@ -70,3 +70,103 @@ http://localhost:5173
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
 - If you export a newer Blender model, replace `public/models/och-building.glb` with the new `.glb` file.
 - Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
+
+## GitHub group collaboration guide
+
+Use branches so each group member can work without changing the main project right away.
+
+### 1. Get the latest project files
+
+Before starting your task, make sure your local `main` branch is updated:
+
+```bash
+git switch main
+git pull origin main
+```
+
+### 2. Create your own branch
+
+Use a branch name that includes your name and task:
+
+```bash
+git switch -c feature/your-name-task
+```
+
+Example:
+
+```bash
+git switch -c feature/john-office-sidebar
+```
+
+Good branch name examples:
+
+```text
+feature/john-navbar
+feature/maria-login-page
+feature/kevin-map-viewer
+fix/anna-sidebar-search
+```
+
+### 3. Make your changes
+
+Edit the files assigned to you. After editing, check what changed:
+
+```bash
+git status
+```
+
+### 4. Save your work with a commit
+
+Add and commit your changes:
+
+```bash
+git add .
+git commit -m "Add office sidebar updates"
+```
+
+Use a short message that explains what you changed.
+
+### 5. Upload your branch to GitHub
+
+Push your branch:
+
+```bash
+git push -u origin feature/your-name-task
+```
+
+Example:
+
+```bash
+git push -u origin feature/john-office-sidebar
+```
+
+### 6. Create a pull request
+
+On GitHub:
+
+1. Open the repository.
+2. Click **Compare & pull request**.
+3. Make sure the base branch is `main`.
+4. Add a short title and description.
+5. Click **Create pull request**.
+
+Your group can review the pull request before merging it into `main`.
+
+### 7. After your work is merged
+
+Update your local project again before starting a new task:
+
+```bash
+git switch main
+git pull origin main
+```
+
+Then create a new branch for the next task.
+
+### Important rules for the group
+
+- Do not push directly to `main`.
+- Create one branch per task.
+- Pull the latest `main` before starting new work.
+- Commit small changes with clear messages.
+- If two members edit the same file, talk first to avoid conflicts.
