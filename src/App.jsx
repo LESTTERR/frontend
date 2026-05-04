@@ -13,6 +13,14 @@ export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState(offices[0].id);
+  const [mapCommand, setMapCommand] = useState(null);
+
+  const sendMapCommand = (type) => {
+    setMapCommand((currentCommand) => ({
+      type,
+      sequence: (currentCommand?.sequence ?? 0) + 1,
+    }));
+  };
 
   const filteredOffices = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -60,11 +68,19 @@ export default function App() {
 
           <section className="map-area">
             <div className="map-toolbar" aria-label="Map actions">
-              <button className="tool-button" type="button">
+              <button
+                className="tool-button"
+                type="button"
+                onClick={() => sendMapCommand("reset-view")}
+              >
                 <Compass size={18} aria-hidden="true" />
                 Recenter
               </button>
-              <button className="tool-button primary" type="button">
+              <button
+                className="tool-button primary"
+                type="button"
+                onClick={() => sendMapCommand("focus-office")}
+              >
                 <Route size={18} aria-hidden="true" />
                 Preview Path
               </button>
@@ -73,7 +89,7 @@ export default function App() {
             <MapPreview
               offices={offices}
               selectedOfficeId={selectedOffice.id}
-              onSelectOffice={setSelectedOfficeId}
+              mapCommand={mapCommand}
             />
           </section>
 
@@ -82,7 +98,10 @@ export default function App() {
               <Building2 size={22} aria-hidden="true" />
               <span>Selected Office</span>
             </div>
-            <OfficeDetails office={selectedOffice} />
+            <OfficeDetails
+              office={selectedOffice}
+              onSetDestination={() => sendMapCommand("focus-office")}
+            />
           </aside>
         </main>
       )}

@@ -1,6 +1,6 @@
 import { Clock3, DoorOpen, Layers, MapPinned, Navigation } from "lucide-react";
 
-export default function OfficeDetails({ office }) {
+export default function OfficeDetails({ office, onSetDestination }) {
   return (
     <div className="office-details">
       <h2>{office.name}</h2>
@@ -37,7 +37,11 @@ export default function OfficeDetails({ office }) {
         </div>
       </dl>
 
-      <button className="direction-button" type="button">
+      <button
+        className="direction-button"
+        type="button"
+        onClick={onSetDestination}
+      >
         <Navigation size={19} aria-hidden="true" />
         Set as Destination
       </button>
