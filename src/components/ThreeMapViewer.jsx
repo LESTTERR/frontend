@@ -54,9 +54,9 @@ function getCameraOffset(bounds) {
   const largestSide = Math.max(size.x, size.y, size.z) || 7;
 
   return new THREE.Vector3(
-    largestSide * 0.62,
-    largestSide * 0.42,
-    largestSide * 0.68,
+    largestSide * 0.82,
+    largestSide * 0.54,
+    largestSide * 0.9,
   );
 }
 
@@ -169,7 +169,7 @@ export default function ThreeMapViewer({
     }
 
     const center = bounds.getCenter(new THREE.Vector3());
-    const offset = getCameraOffset(bounds).multiplyScalar(1.45);
+    const offset = getCameraOffset(bounds).multiplyScalar(1.55);
 
     animateView(center, center.clone().add(offset), instant);
   }

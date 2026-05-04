@@ -195,16 +195,18 @@ button {
 }
 
 .workspace {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 620px;
   display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr minmax(260px, 330px);
-  gap: 18px;
-  padding: 96px 20px 20px;
+  grid-template-columns: minmax(220px, 255px) minmax(0, 1fr) minmax(220px, 265px);
+  gap: 12px;
+  overflow: hidden;
+  padding: 86px 14px 14px;
 }
 
 .sidebar,
 .details-panel {
-  min-height: calc(100vh - 116px);
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
@@ -219,22 +221,22 @@ button {
 }
 
 .sidebar-header {
-  padding: 22px 22px 14px;
+  padding: 16px 16px 12px;
 }
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 1.55rem;
+  font-size: 1.2rem;
   line-height: 1.15;
 }
 
 .search-box {
-  min-height: 50px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 0 18px 16px;
-  padding: 0 12px;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--muted);
@@ -275,16 +277,16 @@ button {
 .office-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 0 18px 18px;
+  gap: 8px;
+  padding: 0 12px 12px;
   overflow: auto;
 }
 
 .office-card {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
-  padding: 14px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
@@ -309,12 +311,12 @@ button {
 }
 
 .office-card strong {
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .office-card span {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
@@ -325,7 +327,7 @@ button {
   border-radius: 999px;
   color: var(--green);
   background: #e5f1eb;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -347,7 +349,7 @@ button {
 .map-area {
   position: relative;
   min-width: 0;
-  min-height: calc(100vh - 116px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -358,9 +360,9 @@ button {
 .map-toolbar {
   position: absolute;
   z-index: 8;
-  top: 18px;
-  left: 18px;
-  right: 18px;
+  top: 12px;
+  left: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -369,12 +371,12 @@ button {
 }
 
 .tool-button {
-  min-height: 42px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
@@ -393,16 +395,17 @@ button {
 .map-preview {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 116px);
   height: 100%;
-  display: grid;
+  min-height: 0;
+  display: flex;
   align-items: stretch;
-  padding: 74px 22px 22px;
+  padding: 58px 14px 14px;
 }
 
 .map-floor {
   position: relative;
-  min-height: 520px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(24, 48, 47, 0.1);
   border-radius: 8px;
@@ -577,16 +580,16 @@ button {
 }
 
 .model-label {
-  top: 74px;
-  right: 24px;
+  top: 58px;
+  right: 16px;
   left: auto;
   transform: none;
 }
 
 .map-caption {
   position: absolute;
-  left: 34px;
-  bottom: 34px;
+  left: 24px;
+  bottom: 24px;
   z-index: 6;
   display: grid;
   gap: 4px;
@@ -612,7 +615,8 @@ button {
 }
 
 .details-panel {
-  padding: 22px;
+  overflow: auto;
+  padding: 16px;
 }
 
 .details-heading {
@@ -627,33 +631,34 @@ button {
 
 .office-details {
   display: grid;
-  gap: 18px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .office-details h2 {
   margin: 0;
   color: var(--ink);
-  font-size: 1.75rem;
+  font-size: 1.32rem;
   line-height: 1.1;
 }
 
 .office-details p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.6;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .detail-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
 }
 
 .detail-list div {
   display: grid;
-  gap: 6px;
-  padding: 12px;
+  gap: 4px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--soft);
@@ -664,7 +669,7 @@ button {
   align-items: center;
   gap: 7px;
   color: var(--green);
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -676,13 +681,13 @@ button {
 }
 
 .direction-button {
-  min-height: 48px;
+  min-height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 12px;
   border: 0;
   border-radius: 8px;
   color: white;
@@ -691,9 +696,19 @@ button {
   box-shadow: 0 16px 30px rgba(20, 107, 79, 0.22);
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 980px) {
   .workspace {
-    grid-template-columns: minmax(270px, 340px) 1fr;
+    height: auto;
+    min-height: 100vh;
+    grid-template-columns: minmax(240px, 300px) 1fr;
+    gap: 14px;
+    overflow: visible;
+    padding: 96px 16px 16px;
+  }
+
+  .map-area,
+  .map-preview {
+    min-height: calc(100vh - 112px);
   }
 
   .details-panel {
@@ -719,7 +734,10 @@ button {
   }
 
   .workspace {
+    height: auto;
+    min-height: 100vh;
     grid-template-columns: 1fr;
+    overflow: visible;
     padding-top: 142px;
   }
 
@@ -774,6 +792,7 @@ button {
   }
 
   .map-preview {
+    flex-direction: column;
     padding: 12px;
   }
 
