@@ -1,33 +1,117 @@
-import { ArrowRight, Hand } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Flame,
+  MapPinned,
+  PhoneCall,
+  ShieldAlert,
+  Siren,
+} from "lucide-react";
+
+const emergencyHotlines = [
+  {
+    label: "Police / Fire / Medical",
+    number: "911",
+    href: "tel:911",
+    icon: ShieldAlert,
+  },
+  {
+    label: "Olongapo Rescue",
+    number: "0998-593-7446",
+    href: "tel:09985937446",
+    icon: Siren,
+  },
+  {
+    label: "Fire & Rescue",
+    number: "223-1415",
+    href: "tel:2231415",
+    icon: Flame,
+  },
+];
 
 export default function LandingScreen({ municipalName, onStart }) {
-  function handleKeyDown(event) {
-    if (event.key === "Enter" || event.key === " ") {
-      onStart();
-    }
+  function stopLandingClick(event) {
+    event.stopPropagation();
   }
 
   return (
     <main
       className="landing"
-      role="button"
-      tabIndex={0}
       onClick={onStart}
-      onKeyDown={handleKeyDown}
       aria-label="Enter MuniciMap"
     >
+      <div className="landing-backdrop" aria-hidden="true">
+        <div className="landing-grid" />
+        <div className="landing-map-line line-one" />
+        <div className="landing-map-line line-two" />
+        <div className="landing-node node-one" />
+        <div className="landing-node node-two" />
+        <div className="landing-node node-three" />
+      </div>
+
       <div className="landing-content">
         <span className="landing-kicker">
-          <Hand size={18} aria-hidden="true" />
-          Public wayfinding system
+          <MapPinned size={18} aria-hidden="true" />
+          Public wayfinding
         </span>
-        <h2>Welcome to City Hall</h2>
-        <p>{municipalName}</p>
-        <div className="start-prompt">
+
+        <div className="landing-title-block">
+          <h2>City Hall Navigator</h2>
+          <p>{municipalName}</p>
+        </div>
+
+        <button
+          className="start-prompt"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onStart();
+          }}
+        >
           <span>Touch anywhere to proceed</span>
           <ArrowRight size={20} aria-hidden="true" />
+        </button>
+
+        <div className="landing-quick-info" aria-label="Wayfinding highlights">
+          <div>
+            <Building2 size={19} aria-hidden="true" />
+            <span>Office finder</span>
+          </div>
+          <div>
+            <MapPinned size={19} aria-hidden="true" />
+            <span>3D building map</span>
+          </div>
+          <div>
+            <PhoneCall size={19} aria-hidden="true" />
+            <span>Emergency contacts</span>
+          </div>
         </div>
       </div>
+
+      <aside
+        className="emergency-dock"
+        aria-label="Emergency hotlines"
+        onClick={stopLandingClick}
+      >
+        <div className="emergency-heading">
+          <PhoneCall size={18} aria-hidden="true" />
+          <span>Emergency Hotlines</span>
+        </div>
+
+        <div className="hotline-list">
+          {emergencyHotlines.map((hotline) => {
+            const Icon = hotline.icon;
+
+            return (
+              <a className="hotline-item" href={hotline.href} key={hotline.label}>
+                <Icon size={18} aria-hidden="true" />
+                <span>{hotline.label}</span>
+                <strong>{hotline.number}</strong>
+              </a>
+            );
+          })}
+        </div>
+      </aside>
     </main>
   );
 }

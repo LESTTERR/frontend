@@ -13,15 +13,16 @@ export default function MapPreview({ offices, selectedOfficeId, mapCommand }) {
 
         {selectedOffice ? (
           <div className="destination-label model-label">
+            <span>Destination</span>
             <strong>{selectedOffice.name}</strong>
-            <span>{selectedOffice.room}</span>
+            <em>{selectedOffice.room}</em>
           </div>
         ) : null}
       </div>
 
       <div className="map-caption">
-        <span>3D model loaded</span>
-        <strong>Choose an office to center it, drag to rotate, and scroll to zoom.</strong>
+        <span>Live 3D Route</span>
+        <strong>Choose an office to draw the route inside the model.</strong>
       </div>
     </div>
   );

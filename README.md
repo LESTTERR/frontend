@@ -38,8 +38,12 @@ frontend/
     services/
       firebase.js
   public/
+    experiment/
+      OCH GF (1).glb
+      OCH GF NAVMESH.glb
+      OCH GF only.glb
     models/
-      och-building.glb
+      PROTOTYPE2.glb
 ```
 
 ## How to run
@@ -66,9 +70,11 @@ http://localhost:5173
 
 - Change the municipality name in `src/App.jsx`.
 - Add or update offices in `src/data/offices.js`.
-- The current 3D model is in `public/models/och-building.glb`.
+- The current 3D model is in `public/experiment/OCH GF (1).glb`.
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
-- If you export a newer Blender model, replace `public/models/och-building.glb` with the new `.glb` file.
+- If you export a newer Blender model, place it in `public/experiment/` and update the `DEFAULT_MODEL_PATH` value in `src/components/ThreeMapViewer.jsx`.
+- Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and fall back to an object named `Navmesh` when named route markers are not present.
+- The experiment model contains a `Navmesh`, so the viewer builds routes across its connected walkable triangles. Office destinations use the `mapPosition` anchors in `src/data/offices.js`; future Blender exports can replace those approximations with exact named door markers such as `G_ASSESSOR_DOOR`.
 - Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
 
 ## GitHub group collaboration guide

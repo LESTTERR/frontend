@@ -1,23 +1,39 @@
 import { useMemo, useState } from "react";
-import { Building2, Compass, Route } from "lucide-react";
+import {
+  Compass,
+  DoorOpen,
+  Layers,
+  MapPinned,
+  Maximize2,
+  Minus,
+  Navigation,
+  Plus,
+  Route,
+} from "lucide-react";
 import Header from "./components/Header.jsx";
 import LandingScreen from "./components/LandingScreen.jsx";
 import OfficeSidebar from "./components/OfficeSidebar.jsx";
 import MapPreview from "./components/MapPreview.jsx";
-import OfficeDetails from "./components/OfficeDetails.jsx";
 import { offices } from "./data/offices.js";
 
 const MUNICIPAL_NAME = "Olongapo City";
+const floorOptions = [
+  { label: "1", floor: "1st Floor" },
+  { label: "2", floor: "2nd Floor" },
+  { label: "3", floor: "3rd Floor" },
+];
 
 export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState(offices[0].id);
+  const [activeFloor, setActiveFloor] = useState(offices[0].floor);
   const [mapCommand, setMapCommand] = useState(null);
 
-  const sendMapCommand = (type) => {
+  const sendMapCommand = (type, payload = {}) => {
     setMapCommand((currentCommand) => ({
       type,
+      payload,
       sequence: (currentCommand?.sequence ?? 0) + 1,
     }));
   };
@@ -47,43 +63,90 @@ export default function App() {
   const selectedOffice =
     offices.find((office) => office.id === selectedOfficeId) ?? offices[0];
 
-  return (
-    <div className="app">
-      <Header municipalName={MUNICIPAL_NAME} />
+  const getRouteText = (office) => {
+    const needsStairs = office.floor !== "1st Floor";
+    const verticalStep = needsStairs ? `Stairs to ${office.floor}` : "Main corridor";
 
+    return `Main entrance -> ${verticalStep} -> ${office.room}`;
+  };
+
+  const handleSelectOffice = (officeId) => {
+    const office = offices.find((item) => item.id === officeId);
+
+    setSelectedOfficeId(officeId);
+    if (office) {
+      setActiveFloor(office.floor);
+    }
+    sendMapCommand("enter-route");
+  };
+
+  const handleSelectFloor = (floor) => {
+    setActiveFloor(floor);
+    sendMapCommand("focus-floor", { floor });
+  };
+
+  const handleRecenter = () => {
+    setActiveFloor("All Floors");
+    sendMapCommand("reset-view");
+  };
+
+  const handleEnterRoute = () => {
+    setActiveFloor(selectedOffice.floor);
+    sendMapCommand("enter-route");
+  };
+
+  return (
+    <div className={`app ${hasStarted ? "app-home" : ""}`}>
       {!hasStarted ? (
-        <LandingScreen
-          municipalName={MUNICIPAL_NAME}
-          onStart={() => setHasStarted(true)}
-        />
+        <>
+          <Header municipalName={MUNICIPAL_NAME} />
+          <LandingScreen
+            municipalName={MUNICIPAL_NAME}
+            onStart={() => setHasStarted(true)}
+          />
+        </>
       ) : (
-        <main className="workspace" aria-label="Municipal office map">
+        <main className="workspace home-shell" aria-label="Municipal office map">
           <OfficeSidebar
             offices={filteredOffices}
+            selectedOffice={selectedOffice}
             selectedOfficeId={selectedOffice.id}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
-            onSelectOffice={setSelectedOfficeId}
+            onSelectOffice={handleSelectOffice}
           />
 
           <section className="map-area">
             <div className="map-toolbar" aria-label="Map actions">
-              <button
-                className="tool-button"
-                type="button"
-                onClick={() => sendMapCommand("reset-view")}
-              >
-                <Compass size={18} aria-hidden="true" />
-                Recenter
-              </button>
-              <button
-                className="tool-button primary"
-                type="button"
-                onClick={() => sendMapCommand("focus-office")}
-              >
-                <Route size={18} aria-hidden="true" />
-                Preview Path
-              </button>
+              <div className="map-chip-group" aria-label="Map status">
+                <span className="map-chip">
+                  <Layers size={16} aria-hidden="true" />
+                  {activeFloor}
+                </span>
+                <span className="map-chip muted">
+                  <MapPinned size={16} aria-hidden="true" />
+                  {activeFloor === "All Floors" ? "Entrance overview" : "Focused floor view"}
+                </span>
+              </div>
+
+              <div className="map-action-group">
+                <button
+                  className="tool-button"
+                  type="button"
+                  onClick={handleRecenter}
+                >
+                  <Compass size={18} aria-hidden="true" />
+                  Recenter
+                </button>
+                <button
+                  className="tool-button primary"
+                  type="button"
+                  onClick={handleEnterRoute}
+                >
+                  <Route size={18} aria-hidden="true" />
+                  Enter Route
+                </button>
+              </div>
             </div>
 
             <MapPreview
@@ -91,18 +154,81 @@ export default function App() {
               selectedOfficeId={selectedOffice.id}
               mapCommand={mapCommand}
             />
-          </section>
 
-          <aside className="details-panel" aria-label="Selected office details">
-            <div className="details-heading">
-              <Building2 size={22} aria-hidden="true" />
-              <span>Selected Office</span>
+            <aside className="map-legend" aria-label="Map legend">
+              <p>Legend</p>
+              <div>
+                <span className="legend-swatch mayor" />
+                Mayor's Office
+              </div>
+              <div>
+                <span className="legend-swatch office" />
+                Offices
+              </div>
+              <div>
+                <span className="legend-swatch route" />
+                Generated Path
+              </div>
+            </aside>
+
+            <div className="floor-switcher" aria-label="Floor selector">
+              <span>Floor</span>
+              {floorOptions.map((option) => (
+                <button
+                  className={activeFloor === option.floor ? "active" : ""}
+                  type="button"
+                  key={option.floor}
+                  onClick={() => handleSelectFloor(option.floor)}
+                  aria-label={`Show ${option.floor}`}
+                >
+                  <Layers size={14} aria-hidden="true" />
+                  {option.label}
+                </button>
+              ))}
             </div>
-            <OfficeDetails
-              office={selectedOffice}
-              onSetDestination={() => sendMapCommand("focus-office")}
-            />
-          </aside>
+
+            <div className="map-zoom-controls" aria-label="Map zoom controls">
+              <button
+                type="button"
+                onClick={() => sendMapCommand("zoom-in")}
+                aria-label="Zoom in"
+              >
+                <Plus size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => sendMapCommand("zoom-out")}
+                aria-label="Zoom out"
+              >
+                <Minus size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRecenter}
+                aria-label="Fit map to screen"
+              >
+                <Maximize2 size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <aside className="route-summary" aria-label="Selected route summary">
+              <div className="route-metric">
+                <Route size={18} aria-hidden="true" />
+                <span>Route</span>
+                <strong>{getRouteText(selectedOffice)}</strong>
+              </div>
+              <div className="route-metric">
+                <DoorOpen size={18} aria-hidden="true" />
+                <span>Room</span>
+                <strong>{selectedOffice.room}</strong>
+              </div>
+              <div className="route-metric destination">
+                <Navigation size={18} aria-hidden="true" />
+                <span>Destination</span>
+                <strong>{selectedOffice.name}</strong>
+              </div>
+            </aside>
+          </section>
         </main>
       )}
     </div>
