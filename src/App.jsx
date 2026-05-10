@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   Compass,
   DoorOpen,
+  Footprints,
   Layers,
   MapPinned,
   Maximize2,
@@ -17,17 +18,71 @@ import MapPreview from "./components/MapPreview.jsx";
 import { offices } from "./data/offices.js";
 
 const MUNICIPAL_NAME = "Olongapo City";
+const START_FLOOR = "1st Floor";
+const DEFAULT_SELECTED_OFFICE_ID = "main-lobby";
 const floorOptions = [
   { label: "1", floor: "1st Floor" },
   { label: "2", floor: "2nd Floor" },
   { label: "3", floor: "3rd Floor" },
 ];
 
+function getHallwaySide(mapPosition = {}) {
+  if ((mapPosition.x ?? 50) < 42) {
+    return "left side";
+  }
+
+  if ((mapPosition.x ?? 50) > 58) {
+    return "right side";
+  }
+
+  return "center hallway";
+}
+
+function getHallwayDepth(mapPosition = {}) {
+  if ((mapPosition.y ?? 50) < 42) {
+    return "first hallway";
+  }
+
+  if ((mapPosition.y ?? 50) < 64) {
+    return "middle hallway";
+  }
+
+  return "rear hallway";
+}
+
+function getVisitorDirections(office) {
+  const side = getHallwaySide(office.mapPosition);
+  const hallway = getHallwayDepth(office.mapPosition);
+
+  if (office.floor === "1st Floor") {
+    return [
+      "Start at the main entrance on the 1st Floor.",
+      `Follow the orange route toward the ${side} of the ${hallway}.`,
+      `Stop at ${office.room}.`,
+    ];
+  }
+
+  return [
+    "Start at the main entrance on the 1st Floor.",
+    "Follow the orange route to the rear hallway stair or elevator.",
+    `Use the main stairs or elevator to reach the ${office.floor}.`,
+    `Press floor ${office.floor.charAt(0)} to view the final hallway segment toward the ${side} of the ${hallway}.`,
+    `Stop at ${office.room}.`,
+  ];
+}
+
+function getRouteDisplayFloor(office) {
+  return office?.floor === START_FLOOR ? office.floor : START_FLOOR;
+}
+
 export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOfficeId, setSelectedOfficeId] = useState(offices[0].id);
-  const [activeFloor, setActiveFloor] = useState(offices[0].floor);
+  const [selectedOfficeId, setSelectedOfficeId] = useState(
+    offices.find((office) => office.id === DEFAULT_SELECTED_OFFICE_ID)?.id ??
+      offices[0].id,
+  );
+  const [activeFloor, setActiveFloor] = useState(START_FLOOR);
   const [mapCommand, setMapCommand] = useState(null);
 
   const sendMapCommand = (type, payload = {}) => {
@@ -62,12 +117,15 @@ export default function App() {
 
   const selectedOffice =
     offices.find((office) => office.id === selectedOfficeId) ?? offices[0];
+  const visitorDirections = getVisitorDirections(selectedOffice);
 
   const getRouteText = (office) => {
     const needsStairs = office.floor !== "1st Floor";
-    const verticalStep = needsStairs ? `Stairs to ${office.floor}` : "Main corridor";
+    const verticalStep = needsStairs
+      ? `Stairs or elevator to ${office.floor}`
+      : "Main corridor";
 
-    return `Main entrance -> ${verticalStep} -> ${office.room}`;
+    return `Main entrance (${START_FLOOR}) -> ${verticalStep} -> ${office.room}`;
   };
 
   const handleSelectOffice = (officeId) => {
@@ -75,7 +133,7 @@ export default function App() {
 
     setSelectedOfficeId(officeId);
     if (office) {
-      setActiveFloor(office.floor);
+      setActiveFloor(getRouteDisplayFloor(office));
     }
     sendMapCommand("enter-route");
   };
@@ -91,7 +149,7 @@ export default function App() {
   };
 
   const handleEnterRoute = () => {
-    setActiveFloor(selectedOffice.floor);
+    setActiveFloor(getRouteDisplayFloor(selectedOffice));
     sendMapCommand("enter-route");
   };
 
@@ -159,16 +217,29 @@ export default function App() {
               <p>Legend</p>
               <div>
                 <span className="legend-swatch mayor" />
-                Mayor's Office
+                Sky-blue floors
               </div>
               <div>
                 <span className="legend-swatch office" />
-                Offices
+                White walls
               </div>
               <div>
                 <span className="legend-swatch route" />
                 Generated Path
               </div>
+            </aside>
+
+            <aside className="route-instructions" aria-label="Visitor directions">
+              <div className="instruction-heading">
+                <Footprints size={18} aria-hidden="true" />
+                <span>Visitor directions</span>
+              </div>
+              <strong>{selectedOffice.name}</strong>
+              <ol>
+                {visitorDirections.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
             </aside>
 
             <div className="floor-switcher" aria-label="Floor selector">

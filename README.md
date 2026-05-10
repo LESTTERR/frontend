@@ -38,12 +38,20 @@ frontend/
     services/
       firebase.js
   public/
-    experiment/
-      OCH GF (1).glb
-      OCH GF NAVMESH.glb
-      OCH GF only.glb
     models/
-      PROTOTYPE2.glb
+      OCH AF.glb
+      reference/
+        OCH AF only.glb
+        OCH AF NAVMESH.glb
+        OCH GF (2).glb
+        OCH GF only (1).glb
+        OCH GF NAVMESH (1).glb
+        OCH 2F.glb
+        OCH 2F only.glb
+        OCH 2F NAVMESH.glb
+        OCH 3F.glb
+        OCH 3F only.glb
+        OCH 3F NAVMESH.glb
 ```
 
 ## How to run
@@ -70,11 +78,12 @@ http://localhost:5173
 
 - Change the municipality name in `src/App.jsx`.
 - Add or update offices in `src/data/offices.js`.
-- The current 3D model is in `public/experiment/OCH GF (1).glb`.
+- The current 3D model is the all-floor combined model in `public/models/OCH AF.glb`.
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
-- If you export a newer Blender model, place it in `public/experiment/` and update the `DEFAULT_MODEL_PATH` value in `src/components/ThreeMapViewer.jsx`.
-- Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and fall back to an object named `Navmesh` when named route markers are not present.
-- The experiment model contains a `Navmesh`, so the viewer builds routes across its connected walkable triangles. Office destinations use the `mapPosition` anchors in `src/data/offices.js`; future Blender exports can replace those approximations with exact named door markers such as `G_ASSESSOR_DOOR`.
+- Keep only the active whole-building GLB at the top level of `public/models/`. Put split floor, navmesh-only, or reference exports in `public/models/reference/` so they do not get confused with the active model.
+- If you export a newer whole-building Blender model, place that combined file in `public/models/` and update the `DEFAULT_MODEL_PATH` value in `src/components/ThreeMapViewer.jsx` if the main combined file name changes.
+- Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and hide navmesh objects named `Navmesh`, `1F_Navmesh`, `2F_Navmesh`, or `3F_Navmesh`.
+- The current `models` GLBs contain floor meshes and navmesh meshes, but not individual office marker objects. Office destinations use the `routeNode` and `mapPosition` anchors in `src/data/offices.js`, with generated corridor, stair, and elevator connection points for all floors.
 - Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
 
 ## GitHub group collaboration guide

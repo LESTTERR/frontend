@@ -2,9 +2,64 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { offices as municipalOffices } from "../data/offices.js";
 
-const DEFAULT_MODEL_PATH = "/experiment/OCH GF (1).glb";
-const UPPER_FLOOR_TRANSFER_POSITION = { x: 58, y: 76 };
+const DEFAULT_MODEL_PATH = "/models/OCH AF.glb";
+const DEFAULT_MAP_POSITION = { x: 50, y: 50 };
+const FLOOR_NUMBERS = [1, 2, 3];
+const START_FLOOR_NUMBER = 1;
+const FLOOR_PREFIXES = {
+  1: "G",
+  2: "2",
+  3: "3",
+};
+const FLOOR_CORRIDOR_POSITIONS = {
+  front: { x: 50, y: 30 },
+  mid: { x: 50, y: 48 },
+  back: { x: 50, y: 76 },
+};
+const FLOOR_VERTICAL_POSITIONS = {
+  elevator: { x: 42, y: 74 },
+  stairs: { x: 36, y: 82 },
+};
+const FLOOR_SIDE_NODE_POSITIONS = {
+  left: [
+    { x: 38, y: 35 },
+    { x: 31, y: 58 },
+    { x: 42, y: 74 },
+  ],
+  right: [
+    { x: 62, y: 36 },
+    { x: 68, y: 58 },
+    { x: 68, y: 74 },
+  ],
+};
+const FLOOR_MODEL_STYLES = {
+  1: {
+    floor: 0xd8f3ff,
+    wall: 0xfafafa,
+  },
+  2: {
+    floor: 0xe0f2fe,
+    wall: 0xffffff,
+  },
+  3: {
+    floor: 0xe5f4ff,
+    wall: 0xf8fafc,
+  },
+};
+const DEFAULT_MODEL_STYLE = {
+  floor: 0xe0f2fe,
+  wall: 0xffffff,
+};
+const ROUTE_COLOR = 0xf97316;
+const ROUTE_EMISSIVE_COLOR = 0x7c2d12;
+const ROUTE_FLOOR_LIFT = 0.08;
+const ROUTE_CORNER_MIN_DISTANCE = 0.08;
+const ROUTE_ANIMATION_MS_PER_UNIT = 760;
+const ROUTE_ANIMATION_MIN_MS = 1800;
+const ROUTE_ANIMATION_MAX_MS = 6200;
+const OFFICE_LABEL_COLOR = "#0f766e";
 const ROUTE_START_NODES = [
   "G_ENTRY_WALK",
   "G_MAIN_ENTRANCE_DOOR",
@@ -79,8 +134,6 @@ for (const floorNumber of [1, 2, 3]) {
   fallbackRouteEdges.push(
     [`node_corridor_${floorNumber}F_front`, `node_corridor_${floorNumber}F_mid`],
     [`node_corridor_${floorNumber}F_mid`, `node_corridor_${floorNumber}F_back`],
-    [`node_corridor_${floorNumber}F_back`, `node_stairs_${floorNumber}F`],
-    [`node_corridor_${floorNumber}F_back`, `node_elevator_${floorNumber}F`],
   );
 
   for (const side of ["left", "right"]) {
@@ -88,8 +141,15 @@ for (const floorNumber of [1, 2, 3]) {
       [`node_corridor_${floorNumber}F_front`, `node_floor${floorNumber}_${side}_1`],
       [`node_corridor_${floorNumber}F_mid`, `node_floor${floorNumber}_${side}_2`],
       [`node_corridor_${floorNumber}F_back`, `node_floor${floorNumber}_${side}_3`],
+      [`node_floor${floorNumber}_${side}_1`, `node_floor${floorNumber}_${side}_2`],
+      [`node_floor${floorNumber}_${side}_2`, `node_floor${floorNumber}_${side}_3`],
     );
   }
+
+  fallbackRouteEdges.push(
+    [`node_stairs_${floorNumber}F`, `node_floor${floorNumber}_left_3`],
+    [`node_elevator_${floorNumber}F`, `node_floor${floorNumber}_left_3`],
+  );
 }
 
 fallbackRouteEdges.push(
@@ -259,12 +319,16 @@ function getOfficeFocusPosition(office, bounds) {
     return null;
   }
 
-  return getMapFocusPosition(office.mapPosition, bounds, getFloorRatio(office.floor));
+  return getMapFocusPosition(
+    office.mapPosition,
+    bounds,
+    getFloorRatio(office.floor),
+  );
 }
 
 function getMapFocusPosition(mapPosition, bounds, floorRatio = 0.18) {
   const size = bounds.getSize(new THREE.Vector3());
-  const selectedMapPosition = mapPosition ?? { x: 50, y: 50 };
+  const selectedMapPosition = mapPosition ?? DEFAULT_MAP_POSITION;
   const xRatio = clampPercent(selectedMapPosition.x);
   const zRatio = clampPercent(selectedMapPosition.y);
 
@@ -275,16 +339,55 @@ function getMapFocusPosition(mapPosition, bounds, floorRatio = 0.18) {
   );
 }
 
-function getNavmeshDestinationPosition(office, bounds) {
+function getMapPositionAtY(mapPosition, bounds, y) {
+  const size = bounds.getSize(new THREE.Vector3());
+  const selectedMapPosition = mapPosition ?? DEFAULT_MAP_POSITION;
+  const xRatio = clampPercent(selectedMapPosition.x);
+  const zRatio = clampPercent(selectedMapPosition.y);
+
+  return new THREE.Vector3(
+    bounds.min.x + size.x * xRatio,
+    y,
+    bounds.max.z - size.z * zRatio,
+  );
+}
+
+function getFallbackFloorY(floorNumber, bounds) {
+  const size = bounds.getSize(new THREE.Vector3());
+  const floorLabel =
+    floorNumber === 1 ? "1st Floor" : floorNumber === 2 ? "2nd Floor" : "3rd Floor";
+
+  return bounds.min.y + size.y * getFloorRatio(floorLabel);
+}
+
+function getFloorRouteY(floorNumber, bounds, floorMetadata) {
+  return (
+    floorMetadata?.get(floorNumber)?.routeY ??
+    getFallbackFloorY(floorNumber, bounds)
+  );
+}
+
+function getMapRoutePosition(mapPosition, bounds, floorNumber, floorMetadata) {
+  return getMapPositionAtY(
+    mapPosition,
+    bounds,
+    getFloorRouteY(floorNumber, bounds, floorMetadata),
+  );
+}
+
+function getNavmeshDestinationPosition(office, bounds, floorMetadata) {
   if (!office || !bounds) {
     return null;
   }
 
   const floorNumber = getFloorNumber(office.floor);
-  const mapPosition =
-    floorNumber > 1 ? UPPER_FLOOR_TRANSFER_POSITION : office.mapPosition;
 
-  return getMapFocusPosition(mapPosition, bounds, 0.18);
+  return getMapRoutePosition(
+    office.mapPosition,
+    bounds,
+    floorNumber,
+    floorMetadata,
+  );
 }
 
 function getFloorFocusPosition(floor, bounds) {
@@ -303,24 +406,32 @@ function getFloorFocusPosition(floor, bounds) {
   );
 }
 
-function getFirstNodePosition(nodePositions, nodeNames = []) {
-  for (const nodeName of nodeNames) {
-    const nodePosition = nodePositions.get(nodeName);
+function normalizeObjectName(name) {
+  return (name ?? "").replace(/\.\d+$/, "").replace(/\s+/g, "_");
+}
 
-    if (nodePosition) {
-      return nodePosition;
-    }
+function getObjectSearchNames(objectOrName) {
+  if (typeof objectOrName === "string") {
+    return [objectOrName];
   }
 
-  return null;
+  return [
+    objectOrName?.name,
+    objectOrName?.geometry?.name,
+    objectOrName?.parent?.name,
+  ].filter(Boolean);
 }
 
-function normalizeObjectName(name) {
-  return name?.replace(/\.\d+$/, "") ?? "";
-}
+function isNavmeshObject(objectOrName) {
+  return getObjectSearchNames(objectOrName).some((name) => {
+    const normalizedName = normalizeObjectName(name).toLowerCase();
 
-function isNavmeshObject(name) {
-  return normalizeObjectName(name).toLowerCase() === "navmesh";
+    return (
+      normalizedName === "navmesh" ||
+      normalizedName.endsWith("_navmesh") ||
+      normalizedName.includes("navmesh")
+    );
+  });
 }
 
 function getRoutePointName(name) {
@@ -368,25 +479,21 @@ function getRouteEdge(name) {
   ];
 }
 
-function shouldHideRouteHelper(name) {
-  const normalizedName = normalizeObjectName(name);
+function shouldHideRouteHelper(objectOrName) {
+  const normalizedName = normalizeObjectName(
+    typeof objectOrName === "string" ? objectOrName : objectOrName?.name,
+  );
 
   return (
-    isNavmeshObject(normalizedName) ||
+    isNavmeshObject(objectOrName) ||
     normalizedName.startsWith("Marker_") ||
     normalizedName.startsWith("node_") ||
     normalizedName.startsWith("Path_")
   );
 }
 
-function getNavmeshStartPosition(bounds) {
-  const size = bounds.getSize(new THREE.Vector3());
-
-  return new THREE.Vector3(
-    bounds.min.x + size.x * 0.5,
-    bounds.min.y + size.y * 0.18,
-    bounds.max.z - size.z * 0.08,
-  );
+function getNavmeshStartPosition(bounds, floorMetadata) {
+  return getMapRoutePosition({ x: 50, y: 7 }, bounds, 1, floorMetadata);
 }
 
 function getNearestNodeName(position, nodePositions) {
@@ -425,23 +532,22 @@ function getTriangleCenter(firstPosition, secondPosition, thirdPosition) {
     .multiplyScalar(1 / 3);
 }
 
-function getLargestConnectedRouteData(nodePositions, routeEdges) {
+function getRouteComponentCount(nodePositions, routeEdges) {
   const graph = buildRouteGraph(nodePositions, routeEdges);
   const visited = new Set();
-  let largestComponent = [];
+  let componentCount = 0;
 
   for (const nodeName of nodePositions.keys()) {
     if (visited.has(nodeName)) {
       continue;
     }
 
-    const component = [];
     const stack = [nodeName];
     visited.add(nodeName);
+    componentCount += 1;
 
     while (stack.length > 0) {
       const currentNode = stack.pop();
-      component.push(currentNode);
 
       for (const neighbor of graph.get(currentNode) ?? []) {
         if (visited.has(neighbor.node)) {
@@ -452,27 +558,9 @@ function getLargestConnectedRouteData(nodePositions, routeEdges) {
         stack.push(neighbor.node);
       }
     }
-
-    if (component.length > largestComponent.length) {
-      largestComponent = component;
-    }
   }
 
-  const componentNodes = new Set(largestComponent);
-  const nextNodePositions = new Map(
-    [...nodePositions.entries()].filter(([nodeName]) =>
-      componentNodes.has(nodeName),
-    ),
-  );
-  const nextRouteEdges = routeEdges.filter(
-    ([from, to]) => componentNodes.has(from) && componentNodes.has(to),
-  );
-
-  return {
-    nodePositions: nextNodePositions,
-    routeEdges: nextRouteEdges,
-    componentCount: largestComponent.length,
-  };
+  return componentCount;
 }
 
 function buildNavmeshRouteData(root) {
@@ -530,7 +618,7 @@ function buildNavmeshRouteData(root) {
   }
 
   root.traverse((child) => {
-    if (!child.isMesh || !isNavmeshObject(child.name)) {
+    if (!child.isMesh || !isNavmeshObject(child)) {
       return;
     }
 
@@ -571,7 +659,11 @@ function buildNavmeshRouteData(root) {
     return null;
   }
 
-  return getLargestConnectedRouteData(nodePositions, routeEdges);
+  return {
+    nodePositions,
+    routeEdges,
+    componentCount: getRouteComponentCount(nodePositions, routeEdges),
+  };
 }
 
 function createNavmeshRoutePoints(startPosition, endPosition, navmeshRouteData) {
@@ -607,39 +699,6 @@ function createNavmeshRoutePoints(startPosition, endPosition, navmeshRouteData) 
     .map((position) => position.clone());
 }
 
-function getRouteNodeFloor(nodeName) {
-  if (nodeName.startsWith("G_")) {
-    return "G";
-  }
-
-  return nodeName.match(/^(\d)_/)?.[1] ?? "";
-}
-
-function isHallRouteNode(nodeName) {
-  return nodeName.endsWith("_HALL") || nodeName.endsWith("_WALK");
-}
-
-function isDoorRouteNode(nodeName) {
-  return nodeName.endsWith("_DOOR");
-}
-
-function getNearestRouteNodes(sourceNode, candidateNodes, nodePositions, limit) {
-  const sourcePosition = nodePositions.get(sourceNode);
-
-  if (!sourcePosition) {
-    return [];
-  }
-
-  return candidateNodes
-    .filter((candidateNode) => candidateNode !== sourceNode)
-    .sort(
-      (firstNode, secondNode) =>
-        sourcePosition.distanceTo(nodePositions.get(firstNode)) -
-        sourcePosition.distanceTo(nodePositions.get(secondNode)),
-    )
-    .slice(0, limit);
-}
-
 function getObjectCenter(object) {
   const bounds = new THREE.Box3().setFromObject(object);
 
@@ -652,60 +711,359 @@ function getObjectCenter(object) {
   return position;
 }
 
-function createGeneratedRouteEdges(nodePositions) {
+function mergeBounds(currentBounds, nextBounds) {
+  if (!nextBounds) {
+    return currentBounds?.clone?.() ?? null;
+  }
+
+  if (!currentBounds) {
+    return nextBounds.clone();
+  }
+
+  return currentBounds.union(nextBounds);
+}
+
+function getModelFloorNumber(objectOrName) {
+  const names = getObjectSearchNames(objectOrName).map((name) =>
+    normalizeObjectName(name).toLowerCase(),
+  );
+
+  if (
+    names.some((name) =>
+      name.startsWith("1f") ||
+      name.startsWith("gf") ||
+      name.includes("ground"),
+    )
+  ) {
+    return 1;
+  }
+
+  if (names.some((name) => name.startsWith("2f") || name.startsWith("2_"))) {
+    return 2;
+  }
+
+  if (names.some((name) => name.startsWith("3f") || name.startsWith("3_"))) {
+    return 3;
+  }
+
+  if (names.some((name) => name === "navmesh" || name === "cube005")) {
+    return 1;
+  }
+
+  return null;
+}
+
+function getFloorMetadata(root, bounds) {
+  const floorMetadata = new Map();
+
+  for (const floorNumber of FLOOR_NUMBERS) {
+    floorMetadata.set(floorNumber, {
+      navmeshBounds: null,
+      visualBounds: null,
+      routeY: getFallbackFloorY(floorNumber, bounds),
+    });
+  }
+
+  root.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    const floorNumber = getModelFloorNumber(child);
+
+    if (!floorNumber || !floorMetadata.has(floorNumber)) {
+      return;
+    }
+
+    const floorData = floorMetadata.get(floorNumber);
+    const childBounds = new THREE.Box3().setFromObject(child);
+
+    if (childBounds.isEmpty()) {
+      return;
+    }
+
+    if (isNavmeshObject(child)) {
+      floorData.navmeshBounds = mergeBounds(
+        floorData.navmeshBounds,
+        childBounds,
+      );
+      floorData.routeY = floorData.navmeshBounds.min.y;
+      return;
+    }
+
+    floorData.visualBounds = mergeBounds(floorData.visualBounds, childBounds);
+  });
+
+  return floorMetadata;
+}
+
+function addUniqueRouteEdge(routeEdges, seenEdges, from, to) {
+  if (!from || !to || from === to) {
+    return;
+  }
+
+  const edgeKey = [from, to].sort().join("|");
+
+  if (seenEdges.has(edgeKey)) {
+    return;
+  }
+
+  seenEdges.add(edgeKey);
+  routeEdges.push([from, to]);
+}
+
+function getFloorConnectionNodes(floorNumber) {
+  const nodes = [
+    `node_corridor_${floorNumber}F_front`,
+    `node_corridor_${floorNumber}F_mid`,
+    `node_corridor_${floorNumber}F_back`,
+    `node_stairs_${floorNumber}F`,
+    `node_elevator_${floorNumber}F`,
+  ];
+
+  for (const side of ["left", "right"]) {
+    for (const index of [1, 2, 3]) {
+      nodes.push(`node_floor${floorNumber}_${side}_${index}`);
+    }
+  }
+
+  return nodes;
+}
+
+function getRouteNodeCandidates(routeNode) {
+  const normalizedRouteNode = normalizeRouteNodeName(routeNode);
+  const candidates = [routeNode, normalizedRouteNode].filter(Boolean);
+
+  for (const [alias, target] of Object.entries(ROUTE_NODE_ALIASES)) {
+    if (target === normalizedRouteNode) {
+      candidates.push(alias);
+    }
+  }
+
+  return [...new Set(candidates)];
+}
+
+function getOfficeDoorMapPosition(mapPosition = DEFAULT_MAP_POSITION) {
+  const x = mapPosition.x ?? DEFAULT_MAP_POSITION.x;
+  const y = mapPosition.y ?? DEFAULT_MAP_POSITION.y;
+
+  if (x < 42) {
+    return { x: 42, y };
+  }
+
+  if (x > 58) {
+    return { x: 58, y };
+  }
+
+  return { x, y };
+}
+
+function getMapPositionSide(mapPosition = DEFAULT_MAP_POSITION) {
+  const x = mapPosition.x ?? DEFAULT_MAP_POSITION.x;
+
+  if (x < 42) {
+    return "left";
+  }
+
+  if (x > 58) {
+    return "right";
+  }
+
+  return "center";
+}
+
+function getMapPositionDepthIndex(mapPosition = DEFAULT_MAP_POSITION) {
+  const y = mapPosition.y ?? DEFAULT_MAP_POSITION.y;
+
+  if (y < 42) {
+    return 1;
+  }
+
+  if (y < 64) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function getNearestCorridorName(floorNumber, mapPosition = DEFAULT_MAP_POSITION) {
+  const y = mapPosition.y ?? DEFAULT_MAP_POSITION.y;
+
+  if (y < 42) {
+    return `node_corridor_${floorNumber}F_front`;
+  }
+
+  if (y < 64) {
+    return `node_corridor_${floorNumber}F_mid`;
+  }
+
+  return `node_corridor_${floorNumber}F_back`;
+}
+
+function createSyntheticRouteData(bounds, floorMetadata) {
+  const nodePositions = new Map();
   const routeEdges = [];
   const seenEdges = new Set();
-  const nodeNames = [...nodePositions.keys()];
+
+  function addNode(name, floorNumber, mapPosition) {
+    if (!name) {
+      return;
+    }
+
+    nodePositions.set(
+      name,
+      getMapRoutePosition(mapPosition, bounds, floorNumber, floorMetadata),
+    );
+  }
 
   function addEdge(from, to) {
-    if (
-      !from ||
-      !to ||
-      from === to ||
-      !nodePositions.has(from) ||
-      !nodePositions.has(to)
-    ) {
-      return;
-    }
-
-    const edgeKey = [from, to].sort().join("|");
-
-    if (seenEdges.has(edgeKey)) {
-      return;
-    }
-
-    seenEdges.add(edgeKey);
-    routeEdges.push([from, to]);
+    addUniqueRouteEdge(routeEdges, seenEdges, from, to);
   }
 
-  for (const floor of ["G", "2", "3"]) {
-    const floorNodes = nodeNames.filter(
-      (nodeName) => getRouteNodeFloor(nodeName) === floor,
+  for (const floorNumber of FLOOR_NUMBERS) {
+    const prefix = FLOOR_PREFIXES[floorNumber];
+
+    for (const [corridorName, mapPosition] of Object.entries(
+      FLOOR_CORRIDOR_POSITIONS,
+    )) {
+      addNode(`node_corridor_${floorNumber}F_${corridorName}`, floorNumber, mapPosition);
+    }
+
+    for (const [side, mapPositions] of Object.entries(FLOOR_SIDE_NODE_POSITIONS)) {
+      mapPositions.forEach((mapPosition, index) => {
+        addNode(`node_floor${floorNumber}_${side}_${index + 1}`, floorNumber, mapPosition);
+      });
+    }
+
+    addNode(
+      `node_stairs_${floorNumber}F`,
+      floorNumber,
+      FLOOR_VERTICAL_POSITIONS.stairs,
     );
-    const hallNodes = floorNodes.filter(isHallRouteNode);
-    const doorNodes = floorNodes.filter(isDoorRouteNode);
+    addNode(
+      `node_elevator_${floorNumber}F`,
+      floorNumber,
+      FLOOR_VERTICAL_POSITIONS.elevator,
+    );
 
-    for (const hallNode of hallNodes) {
-      getNearestRouteNodes(hallNode, hallNodes, nodePositions, 4).forEach(
-        (neighborNode) => addEdge(hallNode, neighborNode),
-      );
-    }
+    addNode(`${prefix}_MAIN_STAIR_DOOR`, floorNumber, FLOOR_VERTICAL_POSITIONS.stairs);
+    addNode(`${prefix}_ELEVATOR_DOOR`, floorNumber, FLOOR_VERTICAL_POSITIONS.elevator);
+    addEdge(`${prefix}_MAIN_STAIR_DOOR`, `node_stairs_${floorNumber}F`);
+    addEdge(`${prefix}_ELEVATOR_DOOR`, `node_elevator_${floorNumber}F`);
 
-    for (const doorNode of doorNodes) {
-      getNearestRouteNodes(doorNode, hallNodes, nodePositions, 2).forEach(
-        (hallNode) => addEdge(doorNode, hallNode),
-      );
+    if (floorNumber === 1) {
+      addNode("node_kiosk", 1, { x: 50, y: 7 });
+      addNode("G_ENTRY_WALK", 1, { x: 50, y: 7 });
+      addNode("G_MAIN_ENTRANCE_DOOR", 1, { x: 50, y: 10 });
+      addNode("G_ENTRY", 1, { x: 50, y: 13 });
+      addNode("G_MAIN_LOBBY_DOOR", 1, { x: 50, y: 24 });
+      addNode("G_MAIN_LOBBY_HALL", 1, { x: 50, y: 28 });
+      addNode("G_CENTER_SPINE_HALL", 1, FLOOR_CORRIDOR_POSITIONS.mid);
+      addNode("G_CENTER", 1, { x: 50, y: 50 });
+
+      addEdge("G_ENTRY_WALK", "G_MAIN_ENTRANCE_DOOR");
+      addEdge("G_MAIN_ENTRANCE_DOOR", "G_ENTRY");
+      addEdge("G_ENTRY", "node_corridor_1F_front");
+      addEdge("G_MAIN_LOBBY_DOOR", "G_MAIN_LOBBY_HALL");
+      addEdge("G_MAIN_LOBBY_HALL", "node_corridor_1F_mid");
+      addEdge("G_CENTER_SPINE_HALL", "node_corridor_1F_mid");
+      addEdge("G_CENTER", "node_corridor_1F_mid");
+    } else {
+      addNode(`${prefix}_FRONT`, floorNumber, FLOOR_CORRIDOR_POSITIONS.front);
+      addNode(`${prefix}_CENTER`, floorNumber, { x: 50, y: 50 });
+      addNode(`${prefix}_CENTER_LOBBY_HALL`, floorNumber, FLOOR_CORRIDOR_POSITIONS.mid);
+      addNode(`${prefix}_VERTICAL_SPINE_HALL`, floorNumber, {
+        x: 50,
+        y: 62,
+      });
+
+      addEdge(`${prefix}_FRONT`, `node_corridor_${floorNumber}F_front`);
+      addEdge(`${prefix}_CENTER`, `node_corridor_${floorNumber}F_mid`);
+      addEdge(`${prefix}_CENTER_LOBBY_HALL`, `node_corridor_${floorNumber}F_mid`);
+      addEdge(`${prefix}_VERTICAL_SPINE_HALL`, `node_corridor_${floorNumber}F_back`);
     }
   }
 
-  addEdge("G_ENTRY_WALK", "G_MAIN_ENTRANCE_DOOR");
-  addEdge("G_MAIN_ENTRANCE_DOOR", "G_MAIN_LOBBY_HALL");
+  fallbackRouteEdges.forEach(([from, to]) => addEdge(from, to));
   addEdge("G_MAIN_STAIR_DOOR", "2_MAIN_STAIR_DOOR");
   addEdge("2_MAIN_STAIR_DOOR", "3_MAIN_STAIR_DOOR");
   addEdge("G_ELEVATOR_DOOR", "2_ELEVATOR_DOOR");
   addEdge("2_ELEVATOR_DOOR", "3_ELEVATOR_DOOR");
 
-  return routeEdges;
+  for (const office of municipalOffices) {
+    const floorNumber = getFloorNumber(office.floor);
+    const routeNodeNames = getRouteNodeCandidates(
+      office.routeNode ?? OFFICE_ROUTE_NODES[office.id],
+    );
+
+    const mainRouteNode = normalizeRouteNodeName(
+      office.routeNode ?? OFFICE_ROUTE_NODES[office.id],
+    );
+
+    if (!mainRouteNode) {
+      continue;
+    }
+
+    const normalizedText = `${office.name} ${office.room} ${office.category}`.toLowerCase();
+    const isStairOffice = normalizedText.includes("stair");
+    const isElevatorOffice =
+      normalizedText.includes("elevator") || normalizedText.includes("lift");
+    const doorMapPosition = isStairOffice
+      ? FLOOR_VERTICAL_POSITIONS.stairs
+      : isElevatorOffice
+        ? FLOOR_VERTICAL_POSITIONS.elevator
+        : getOfficeDoorMapPosition(office.mapPosition);
+
+    routeNodeNames.forEach((routeNodeName) => {
+      addNode(routeNodeName, floorNumber, doorMapPosition);
+
+      if (routeNodeName !== mainRouteNode) {
+        addEdge(routeNodeName, mainRouteNode);
+      }
+    });
+
+    if (isStairOffice) {
+      addEdge(mainRouteNode, `node_stairs_${floorNumber}F`);
+      continue;
+    }
+
+    if (isElevatorOffice) {
+      addEdge(mainRouteNode, `node_elevator_${floorNumber}F`);
+      continue;
+    }
+
+    const hallwayNode = `node_${office.id}_hallway`;
+    const officeSide = getMapPositionSide(office.mapPosition);
+    const depthIndex = getMapPositionDepthIndex(doorMapPosition);
+
+    if (officeSide !== "center") {
+      addNode(hallwayNode, floorNumber, doorMapPosition);
+      addEdge(mainRouteNode, hallwayNode);
+      addEdge(hallwayNode, `node_floor${floorNumber}_${officeSide}_${depthIndex}`);
+      continue;
+    }
+
+    const hallwayMapPosition = {
+      x: 50,
+      y: doorMapPosition.y,
+    };
+    addNode(hallwayNode, floorNumber, hallwayMapPosition);
+    addEdge(mainRouteNode, hallwayNode);
+    addEdge(hallwayNode, getNearestCorridorName(floorNumber, doorMapPosition));
+  }
+
+  return { nodePositions, routeEdges };
+}
+
+function mergeRouteEdges(routeEdges) {
+  const mergedRouteEdges = [];
+  const seenEdges = new Set();
+
+  routeEdges.forEach(([from, to]) => {
+    addUniqueRouteEdge(mergedRouteEdges, seenEdges, from, to);
+  });
+
+  return mergedRouteEdges;
 }
 
 function getCameraOffset(bounds) {
@@ -713,33 +1071,10 @@ function getCameraOffset(bounds) {
   const largestSide = Math.max(size.x, size.y, size.z) || 7;
 
   return new THREE.Vector3(
-    largestSide * 0.82,
-    largestSide * 0.54,
-    largestSide * 0.9,
-  );
-}
-
-function getFloorCameraOffset(bounds) {
-  const size = bounds.getSize(new THREE.Vector3());
-  const largestSide = Math.max(size.x, size.y, size.z) || 7;
-
-  return new THREE.Vector3(
-    largestSide * 0.38,
-    largestSide * 0.24,
     largestSide * 0.42,
+    largestSide * 0.28,
+    largestSide * 0.46,
   );
-}
-
-function getRouteSideOffset(start, end, amount) {
-  const direction = end.clone().sub(start);
-  direction.y = 0;
-
-  if (direction.lengthSq() < 0.001) {
-    return new THREE.Vector3(amount, 0, 0);
-  }
-
-  direction.normalize();
-  return new THREE.Vector3(-direction.z, 0, direction.x).multiplyScalar(amount);
 }
 
 function getFrontDirection(bounds, nodePositions) {
@@ -754,19 +1089,6 @@ function getFrontDirection(bounds, nodePositions) {
     nodePositions.get("G_LOBBY_CENTER") ??
     center;
   const frontDirection = entryPosition.clone().sub(lobbyPosition);
-  frontDirection.y = 0;
-
-  if (frontDirection.lengthSq() < 0.001) {
-    frontDirection.set(0, 0, 1);
-  }
-
-  frontDirection.normalize();
-  return frontDirection;
-}
-
-function getEntranceDirection(bounds, routeStart) {
-  const center = bounds.getCenter(new THREE.Vector3());
-  const frontDirection = routeStart.clone().sub(center);
   frontDirection.y = 0;
 
   if (frontDirection.lengthSq() < 0.001) {
@@ -792,49 +1114,221 @@ function getFrontOverviewView(bounds, nodePositions) {
 
   const cameraPosition = entryPosition
     .clone()
-    .add(frontDirection.multiplyScalar(largestSide * 0.82));
-  cameraPosition.y = bounds.min.y + size.y * 0.64;
+    .add(frontDirection.multiplyScalar(largestSide * 0.62));
+  cameraPosition.y = bounds.min.y + size.y * 0.56;
 
   return { target, cameraPosition };
 }
 
-function getKioskRouteView(points, bounds) {
+function getFloorModelBounds(floorNumber, floorMetadata, fallbackBounds) {
+  const floorData = floorMetadata?.get(floorNumber);
+
+  if (!floorData) {
+    return fallbackBounds;
+  }
+
+  return (
+    mergeBounds(floorData.visualBounds, floorData.navmeshBounds) ??
+    floorData.visualBounds ??
+    floorData.navmeshBounds ??
+    fallbackBounds
+  );
+}
+
+function getFloorOverviewView(floorNumber, bounds, floorMetadata) {
+  const floorBounds = getFloorModelBounds(floorNumber, floorMetadata, bounds);
+  const floorCenter = floorBounds.getCenter(new THREE.Vector3());
+  const floorSize = floorBounds.getSize(new THREE.Vector3());
+  const floorLargest = Math.max(floorSize.x, floorSize.z, floorSize.y * 2.6) || 7;
+
+  const target = floorCenter.clone();
+  target.y = getFloorRouteY(floorNumber, bounds, floorMetadata) + floorLargest * 0.025;
+
+  const cameraPosition = floorCenter.clone().add(
+    new THREE.Vector3(
+      floorLargest * 0.22,
+      floorLargest * 0.26,
+      floorLargest * 0.28,
+    ),
+  );
+
+  return { target, cameraPosition };
+}
+
+function getFocusedRoutePoints(points, floorNumber, bounds, floorMetadata) {
+  if (!points || points.length < 2 || !bounds) {
+    return [];
+  }
+
+  const floorY = getFloorRouteY(floorNumber, bounds, floorMetadata);
+  const tolerance = Math.max(bounds.getSize(new THREE.Vector3()).y * 0.05, 0.24);
+  const focusedPoints = points.filter(
+    (point) => Math.abs(point.y - floorY) <= tolerance,
+  );
+
+  return focusedPoints.length >= 2 ? focusedPoints : [];
+}
+
+function areRoutePointsClose(firstPoint, secondPoint, tolerance = 0.025) {
+  return firstPoint.distanceToSquared(secondPoint) <= tolerance * tolerance;
+}
+
+function addRoutePoint(routePoints, point) {
+  if (
+    routePoints.length > 0 &&
+    areRoutePointsClose(routePoints[routePoints.length - 1], point)
+  ) {
+    return;
+  }
+
+  routePoints.push(point.clone());
+}
+
+function getHallwayCornerPoint(start, end, previousPoint) {
+  const continueXFirst =
+    previousPoint &&
+    Math.abs(start.x - previousPoint.x) > Math.abs(start.z - previousPoint.z);
+
+  return continueXFirst
+    ? new THREE.Vector3(end.x, start.y, start.z)
+    : new THREE.Vector3(start.x, start.y, end.z);
+}
+
+function createHallwayRoutePoints(points) {
+  if (!points || points.length < 2) {
+    return points ?? [];
+  }
+
+  const hallwayPoints = [];
+
+  points.forEach((point, index) => {
+    if (index === 0) {
+      addRoutePoint(hallwayPoints, point);
+      return;
+    }
+
+    const start = hallwayPoints[hallwayPoints.length - 1];
+    const end = point;
+    const isSameFloor = Math.abs(start.y - end.y) < 0.12;
+    const xDistance = Math.abs(start.x - end.x);
+    const zDistance = Math.abs(start.z - end.z);
+
+    if (
+      isSameFloor &&
+      xDistance > ROUTE_CORNER_MIN_DISTANCE &&
+      zDistance > ROUTE_CORNER_MIN_DISTANCE
+    ) {
+      const previousPoint = hallwayPoints[hallwayPoints.length - 2];
+      const cornerPoint = getHallwayCornerPoint(start, end, previousPoint);
+
+      if (
+        !areRoutePointsClose(start, cornerPoint) &&
+        !areRoutePointsClose(end, cornerPoint)
+      ) {
+        addRoutePoint(hallwayPoints, cornerPoint);
+      }
+    }
+
+    addRoutePoint(hallwayPoints, end);
+  });
+
+  return hallwayPoints;
+}
+
+function getRouteDistance(points) {
+  if (!points || points.length < 2) {
+    return 0;
+  }
+
+  let distance = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    distance += points[index].distanceTo(points[index + 1]);
+  }
+
+  return distance;
+}
+
+function getRoutePointDistances(points) {
+  const distances = [0];
+  let totalDistance = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    totalDistance += points[index].distanceTo(points[index + 1]);
+    distances.push(totalDistance);
+  }
+
+  return distances;
+}
+
+function getRoutePointAtDistance(points, targetDistance) {
+  if (!points || points.length === 0) {
+    return null;
+  }
+
+  if (points.length === 1 || targetDistance <= 0) {
+    return points[0].clone();
+  }
+
+  let traveledDistance = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const segmentDistance = start.distanceTo(end);
+
+    if (segmentDistance < 0.001) {
+      continue;
+    }
+
+    if (traveledDistance + segmentDistance >= targetDistance) {
+      const segmentProgress =
+        (targetDistance - traveledDistance) / segmentDistance;
+      return start.clone().lerp(end, THREE.MathUtils.clamp(segmentProgress, 0, 1));
+    }
+
+    traveledDistance += segmentDistance;
+  }
+
+  return points[points.length - 1].clone();
+}
+
+function getKioskRouteView(points, bounds, floorNumber, floorMetadata) {
   const routeBounds = new THREE.Box3().setFromPoints(points);
   const routeCenter = routeBounds.getCenter(new THREE.Vector3());
   const routeSize = routeBounds.getSize(new THREE.Vector3());
   const modelSize = bounds.getSize(new THREE.Vector3());
   const modelLargest = Math.max(modelSize.x, modelSize.y, modelSize.z) || 7;
-  const routeStart = points[0];
   const routeEnd = points[points.length - 1];
+  const floorBounds = getFloorModelBounds(floorNumber, floorMetadata, bounds);
+  const floorSize = floorBounds.getSize(new THREE.Vector3());
+  const floorLargest = Math.max(floorSize.x, floorSize.z, floorSize.y * 2.6) || modelLargest;
   const routeLargest =
-    Math.max(routeSize.x, routeSize.y * 1.8, routeSize.z) || modelLargest * 0.22;
-  const frontDirection = getEntranceDirection(bounds, routeStart);
-  const sideDirection = new THREE.Vector3(-frontDirection.z, 0, frontDirection.x);
-  const target = routeCenter.clone().lerp(routeEnd, 0.18);
-  const distance = THREE.MathUtils.clamp(
-    routeLargest * 0.58,
-    modelLargest * 0.22,
-    modelLargest * 0.52,
-  );
-  const sideAmount = THREE.MathUtils.clamp(
-    routeEnd.clone().sub(routeStart).dot(sideDirection) * 0.12,
-    -modelLargest * 0.14,
-    modelLargest * 0.14,
+    Math.max(routeSize.x, routeSize.y * 1.8, routeSize.z) || floorLargest * 0.2;
+  const target = routeCenter.clone().lerp(routeEnd, 0.26);
+  const cameraDistance = THREE.MathUtils.clamp(
+    routeLargest * 1,
+    floorLargest * 0.36,
+    floorLargest * 0.68,
   );
 
   target.y = THREE.MathUtils.clamp(
-    routeCenter.y,
+    routeCenter.y + floorLargest * 0.035,
     bounds.min.y + modelSize.y * 0.08,
-    bounds.min.y + modelSize.y * 0.18,
+    bounds.max.y - modelSize.y * 0.08,
   );
 
-  const cameraPosition = routeStart
-    .clone()
-    .add(frontDirection.multiplyScalar(distance))
-    .add(sideDirection.multiplyScalar(sideAmount));
-  cameraPosition.y = Math.max(
-    bounds.min.y + modelLargest * 0.5,
-    routeBounds.max.y + modelLargest * 0.36,
+  const cameraPosition = target.clone().add(
+    new THREE.Vector3(
+      cameraDistance * 0.12,
+      cameraDistance * 1.7,
+      cameraDistance * 0.16,
+    ),
+  );
+  cameraPosition.y = THREE.MathUtils.clamp(
+    routeCenter.y + floorLargest * 0.82,
+    bounds.min.y + modelLargest * 0.1,
+    bounds.max.y + modelLargest * 0.36,
   );
 
   return { target, cameraPosition };
@@ -861,7 +1355,316 @@ function disposeObject(object) {
   });
 }
 
-function createRouteSegment(start, end, radius, material, renderOrder) {
+function createSurfaceClassifiedGeometry(sourceGeometry, object) {
+  const geometry = sourceGeometry.index
+    ? sourceGeometry.toNonIndexed()
+    : sourceGeometry.clone();
+  const positionAttribute = geometry.getAttribute("position");
+
+  if (!positionAttribute) {
+    return geometry;
+  }
+
+  geometry.clearGroups();
+
+  const firstPosition = new THREE.Vector3();
+  const secondPosition = new THREE.Vector3();
+  const thirdPosition = new THREE.Vector3();
+  const worldFirstPosition = new THREE.Vector3();
+  const worldSecondPosition = new THREE.Vector3();
+  const worldThirdPosition = new THREE.Vector3();
+  const firstEdge = new THREE.Vector3();
+  const faceNormal = new THREE.Vector3();
+  const faceCenter = new THREE.Vector3();
+  const worldMatrix = object?.matrixWorld ?? new THREE.Matrix4();
+  const floorYBuckets = new Map();
+  const floorBucketSize = 0.05;
+  let floorSurfaceY = null;
+  let currentFloorBucketCount = 0;
+  let currentMaterialIndex = null;
+  let currentStart = 0;
+  let currentCount = 0;
+
+  function getFaceWorldData(index) {
+    firstPosition.fromBufferAttribute(positionAttribute, index);
+    secondPosition.fromBufferAttribute(positionAttribute, index + 1);
+    thirdPosition.fromBufferAttribute(positionAttribute, index + 2);
+    worldFirstPosition.copy(firstPosition).applyMatrix4(worldMatrix);
+    worldSecondPosition.copy(secondPosition).applyMatrix4(worldMatrix);
+    worldThirdPosition.copy(thirdPosition).applyMatrix4(worldMatrix);
+
+    faceNormal
+      .copy(worldSecondPosition)
+      .sub(worldFirstPosition)
+      .cross(firstEdge.copy(worldThirdPosition).sub(worldFirstPosition))
+      .normalize();
+
+    faceCenter
+      .copy(worldFirstPosition)
+      .add(worldSecondPosition)
+      .add(worldThirdPosition)
+      .multiplyScalar(1 / 3);
+  }
+
+  function finishGroup() {
+    if (currentMaterialIndex === null || currentCount === 0) {
+      return;
+    }
+
+    geometry.addGroup(currentStart, currentCount, currentMaterialIndex);
+  }
+
+  for (let index = 0; index < positionAttribute.count; index += 3) {
+    getFaceWorldData(index);
+
+    if (faceNormal.y <= 0.58) {
+      continue;
+    }
+
+    const floorBucket =
+      Math.round(faceCenter.y / floorBucketSize) * floorBucketSize;
+    const nextBucketCount = (floorYBuckets.get(floorBucket) ?? 0) + 1;
+    floorYBuckets.set(floorBucket, nextBucketCount);
+
+    if (nextBucketCount > currentFloorBucketCount) {
+      currentFloorBucketCount = nextBucketCount;
+      floorSurfaceY = floorBucket;
+    }
+  }
+
+  for (let index = 0; index < positionAttribute.count; index += 3) {
+    getFaceWorldData(index);
+
+    const isFloorSurface =
+      faceNormal.y > 0.58 &&
+      (floorSurfaceY === null ||
+        Math.abs(faceCenter.y - floorSurfaceY) <= floorBucketSize * 1.6);
+    const materialIndex = isFloorSurface ? 0 : 1;
+
+    if (currentMaterialIndex === null) {
+      currentMaterialIndex = materialIndex;
+      currentStart = index;
+      currentCount = 3;
+      continue;
+    }
+
+    if (materialIndex === currentMaterialIndex) {
+      currentCount += 3;
+      continue;
+    }
+
+    finishGroup();
+    currentMaterialIndex = materialIndex;
+    currentStart = index;
+    currentCount = 3;
+  }
+
+  finishGroup();
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createBuildingMaterials(modelStyle) {
+  return [
+    new THREE.MeshStandardMaterial({
+      name: "generated_sky_blue_floor",
+      color: modelStyle.floor,
+      emissive: modelStyle.floor,
+      emissiveIntensity: 0.08,
+      roughness: 0.72,
+      metalness: 0.03,
+      side: THREE.DoubleSide,
+    }),
+    new THREE.MeshStandardMaterial({
+      name: "generated_white_wall",
+      color: modelStyle.wall,
+      emissive: modelStyle.wall,
+      emissiveIntensity: 0.12,
+      transparent: true,
+      opacity: 0.94,
+      roughness: 0.68,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+    }),
+  ];
+}
+
+function styleNavmeshFloorMesh(child) {
+  const floorNumber = getModelFloorNumber(child) ?? 1;
+
+  child.userData.floorNumber = floorNumber;
+  child.userData.isPathfindingHelper = true;
+  child.visible = false;
+  child.castShadow = false;
+  child.receiveShadow = false;
+}
+
+function styleBuildingMesh(child) {
+  if (
+    !child.isMesh ||
+    isNavmeshObject(child) ||
+    getRoutePointName(child.name) ||
+    getRouteEdge(child.name)
+  ) {
+    return;
+  }
+
+  const floorNumber = getModelFloorNumber(child) ?? 1;
+  const modelStyle = FLOOR_MODEL_STYLES[floorNumber] ?? DEFAULT_MODEL_STYLE;
+
+  child.userData.floorNumber = floorNumber;
+  const originalGeometry = child.geometry;
+  child.geometry = createSurfaceClassifiedGeometry(originalGeometry, child);
+  originalGeometry.dispose();
+  child.material = createBuildingMaterials(modelStyle);
+}
+
+function getRouteStartFloorNumber() {
+  return START_FLOOR_NUMBER;
+}
+
+function getOfficeLabelPosition(office, bounds, floorMetadata, nodePositions) {
+  const floorNumber = getFloorNumber(office.floor);
+  const routeNode = getOfficeRouteNode(office);
+  const routePosition = routeNode ? nodePositions.get(routeNode) : null;
+
+  if (routePosition) {
+    return routePosition.clone();
+  }
+
+  return getMapRoutePosition(
+    getOfficeDoorMapPosition(office.mapPosition),
+    bounds,
+    floorNumber,
+    floorMetadata,
+  );
+}
+
+function drawRoundedRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function fitOfficeLabelText(context, text, maxWidth) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let currentLine = "";
+
+  words.forEach((word) => {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+
+    if (context.measureText(nextLine).width <= maxWidth || !currentLine) {
+      currentLine = nextLine;
+      return;
+    }
+
+    lines.push(currentLine);
+    currentLine = word;
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.slice(0, 2);
+}
+
+function createOfficeLabelSprite(office, position, bounds) {
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = 360 * scale;
+  canvas.height = 108 * scale;
+
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+  context.clearRect(0, 0, 360, 108);
+
+  drawRoundedRect(context, 10, 10, 340, 88, 18);
+  context.fillStyle = "rgba(255, 255, 255, 0.94)";
+  context.fill();
+  context.lineWidth = 3;
+  context.strokeStyle = "rgba(15, 118, 110, 0.38)";
+  context.stroke();
+
+  context.fillStyle = OFFICE_LABEL_COLOR;
+  context.font = "700 24px Arial";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  const lines = fitOfficeLabelText(context, office.name, 284);
+  const firstLineY = lines.length === 1 ? 54 : 42;
+  lines.forEach((line, index) => {
+    context.fillText(line, 180, firstLineY + index * 28);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.72,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  const modelSize = bounds.getSize(new THREE.Vector3());
+  const labelWidth = Math.max(Math.max(modelSize.x, modelSize.z) * 0.088, 0.52);
+  const labelHeight = labelWidth * 0.3;
+
+  sprite.name = `office_label_${office.id}`;
+  sprite.position.copy(position);
+  sprite.position.y += Math.max(modelSize.y * 0.035, 0.22);
+  sprite.scale.set(labelWidth, labelHeight, 1);
+  sprite.renderOrder = 60;
+  sprite.userData = {
+    isOfficeLabel: true,
+    officeId: office.id,
+    floorNumber: getFloorNumber(office.floor),
+    baseScale: sprite.scale.clone(),
+  };
+
+  return sprite;
+}
+
+function createOfficeLabels(bounds, floorMetadata, nodePositions) {
+  const group = new THREE.Group();
+  group.name = "generated_office_labels";
+
+  municipalOffices.forEach((office) => {
+    const position = getOfficeLabelPosition(
+      office,
+      bounds,
+      floorMetadata,
+      nodePositions,
+    );
+    const label = createOfficeLabelSprite(office, position, bounds);
+    label.visible = false;
+    group.add(label);
+  });
+
+  return group;
+}
+
+function createRouteSegment(
+  start,
+  end,
+  radius,
+  material,
+  renderOrder,
+  anchorAtStart = false,
+) {
   const direction = end.clone().sub(start);
   const length = direction.length();
 
@@ -869,15 +1672,32 @@ function createRouteSegment(start, end, radius, material, renderOrder) {
     return null;
   }
 
-  const geometry = new THREE.CylinderGeometry(radius, radius, length, 14);
+  const geometry = new THREE.CylinderGeometry(
+    radius,
+    radius,
+    anchorAtStart ? 1 : length,
+    14,
+  );
+
+  if (anchorAtStart) {
+    geometry.translate(0, 0.5, 0);
+  }
+
   const mesh = new THREE.Mesh(geometry, material);
 
-  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  if (anchorAtStart) {
+    mesh.position.copy(start);
+    mesh.scale.y = length;
+  } else {
+    mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  }
+
   mesh.quaternion.setFromUnitVectors(
     new THREE.Vector3(0, 1, 0),
     direction.normalize(),
   );
   mesh.renderOrder = renderOrder;
+  mesh.userData.segmentLength = length;
   return mesh;
 }
 
@@ -893,6 +1713,9 @@ export default function ThreeMapViewer({
   const focusAnimationRef = useRef(null);
   const focusMarkerRef = useRef(null);
   const modelBoundsRef = useRef(null);
+  const modelRootRef = useRef(null);
+  const officeLabelsGroupRef = useRef(null);
+  const floorMetadataRef = useRef(new Map());
   const nodePositionsRef = useRef(new Map());
   const navmeshRouteDataRef = useRef(null);
   const routeEdgesRef = useRef(fallbackRouteEdges);
@@ -954,6 +1777,84 @@ export default function ThreeMapViewer({
     marker.visible = true;
   }
 
+  function setVisibleFloor(floorNumber = null) {
+    const modelRoot = modelRootRef.current;
+
+    if (!modelRoot) {
+      return;
+    }
+
+    modelRoot.traverse((child) => {
+      if (child.isMesh && isNavmeshObject(child)) {
+        child.visible = false;
+        return;
+      }
+
+      if (
+        !child.isMesh ||
+        getRoutePointName(child.name) ||
+        getRouteEdge(child.name)
+      ) {
+        return;
+      }
+
+      child.visible =
+        !floorNumber || child.userData.floorNumber === floorNumber;
+    });
+
+    officeLabelsGroupRef.current?.children.forEach((label) => {
+      label.visible =
+        Boolean(floorNumber) && label.userData.floorNumber === floorNumber;
+    });
+    updateOfficeLabelHighlight();
+
+    if (mountRef.current) {
+      mountRef.current.dataset.visibleFloor = floorNumber
+        ? String(floorNumber)
+        : "all";
+    }
+  }
+
+  function updateOfficeLabelHighlight() {
+    const labelsGroup = officeLabelsGroupRef.current;
+    const selectedOfficeId = selectedOfficeRef.current?.id;
+
+    if (!labelsGroup) {
+      return;
+    }
+
+    labelsGroup.children.forEach((label) => {
+      const isSelected = label.userData.officeId === selectedOfficeId;
+      const baseScale = label.userData.baseScale;
+
+      if (baseScale) {
+        label.scale.copy(baseScale).multiplyScalar(isSelected ? 1.12 : 1);
+      }
+
+      if (label.material) {
+        label.material.opacity = isSelected ? 0.98 : 0.7;
+        label.material.color.set(isSelected ? 0xfff7ed : 0xffffff);
+      }
+    });
+  }
+
+  function disposeOfficeLabels() {
+    const labelsGroup = officeLabelsGroupRef.current;
+
+    if (!labelsGroup) {
+      return;
+    }
+
+    labelsGroup.parent?.remove(labelsGroup);
+    labelsGroup.traverse((child) => {
+      if (child.material?.map) {
+        child.material.map.dispose();
+      }
+    });
+    disposeObject(labelsGroup);
+    officeLabelsGroupRef.current = null;
+  }
+
   function getOfficeNodePosition(office) {
     const routeNode = getOfficeRouteNode(office);
 
@@ -990,6 +1891,7 @@ export default function ThreeMapViewer({
     );
 
     disposeRouteGroup();
+    setVisibleFloor(null);
     if (focusMarkerRef.current) {
       focusMarkerRef.current.visible = false;
     }
@@ -1011,7 +1913,23 @@ export default function ThreeMapViewer({
     routeGroupRef.current = null;
   }
 
-  function createRouteGroup(points) {
+  function getRouteOverlayY(points, floorNumber) {
+    const floorData = floorMetadataRef.current.get(floorNumber);
+    const floorBounds = floorData?.visualBounds ?? floorData?.navmeshBounds;
+
+    if (floorBounds && !floorBounds.isEmpty()) {
+      return floorBounds.max.y + ROUTE_FLOOR_LIFT;
+    }
+
+    const routeTopY = points.reduce(
+      (maxY, point) => Math.max(maxY, point.y),
+      points[0]?.y ?? 0,
+    );
+
+    return routeTopY + ROUTE_FLOOR_LIFT;
+  }
+
+  function createRouteGroup(points, floorNumber) {
     const scene = sceneRef.current;
 
     if (!scene || points.length < 2) {
@@ -1023,42 +1941,70 @@ export default function ThreeMapViewer({
     const group = new THREE.Group();
     group.name = "generated_3d_route";
 
-    const routePoints = points.map((point) =>
-      point.clone().add(new THREE.Vector3(0, 0.18, 0)),
+    const routeY = getRouteOverlayY(points, floorNumber);
+    const routePoints = points.map(
+      (point) => new THREE.Vector3(point.x, routeY, point.z),
+    );
+    const routePointDistances = getRoutePointDistances(routePoints);
+    const totalDistance = getRouteDistance(routePoints);
+    const animationDuration = THREE.MathUtils.clamp(
+      totalDistance * ROUTE_ANIMATION_MS_PER_UNIT,
+      ROUTE_ANIMATION_MIN_MS,
+      ROUTE_ANIMATION_MAX_MS,
     );
     const baseMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.9,
-      depthTest: false,
+      opacity: 0.68,
+      depthTest: true,
       depthWrite: false,
     });
     const pathMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0f7a55,
+      color: ROUTE_COLOR,
       transparent: true,
       opacity: 0.96,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
     });
+    let traveledDistance = 0;
 
     for (let index = 0; index < routePoints.length - 1; index += 1) {
       const start = routePoints[index];
       const end = routePoints[index + 1];
-      const baseSegment = createRouteSegment(start, end, 0.046, baseMaterial, 30);
-      const pathSegment = createRouteSegment(start, end, 0.028, pathMaterial, 31);
+      const segmentDistance = start.distanceTo(end);
+      const baseSegment = createRouteSegment(start, end, 0.028, baseMaterial, 30);
+      const pathSegment = createRouteSegment(
+        start,
+        end,
+        0.017,
+        pathMaterial,
+        31,
+        true,
+      );
 
       if (baseSegment) {
         group.add(baseSegment);
       }
 
       if (pathSegment) {
+        pathSegment.visible = false;
+        pathSegment.scale.y = 0.001;
+        pathSegment.userData = {
+          ...pathSegment.userData,
+          isAnimatedRouteSegment: true,
+          routeStartDistance: traveledDistance,
+          routeEndDistance: traveledDistance + segmentDistance,
+          segmentLength: segmentDistance,
+        };
         group.add(pathSegment);
       }
+
+      traveledDistance += segmentDistance;
     }
 
     const markerMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0f7a55,
-      depthTest: false,
+      color: ROUTE_COLOR,
+      depthTest: true,
       depthWrite: false,
     });
     routePoints.forEach((point, index) => {
@@ -1067,23 +2013,104 @@ export default function ThreeMapViewer({
       }
 
       const sphere = new THREE.Mesh(
-        new THREE.SphereGeometry(index === routePoints.length - 1 ? 0.042 : 0.018, 18, 12),
+        new THREE.SphereGeometry(index === routePoints.length - 1 ? 0.038 : 0.014, 18, 12),
         markerMaterial,
       );
       sphere.position.copy(point);
       sphere.renderOrder = 32;
+      sphere.visible = false;
+      sphere.userData = {
+        isRouteMarker: true,
+        revealDistance: routePointDistances[index],
+      };
       group.add(sphere);
     });
+
+    const routeHead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.048, 24, 16),
+      new THREE.MeshBasicMaterial({
+        color: ROUTE_COLOR,
+        transparent: true,
+        opacity: 0.98,
+        depthTest: true,
+        depthWrite: false,
+      }),
+    );
+    routeHead.visible = false;
+    routeHead.renderOrder = 33;
+    routeHead.userData = { isRouteHead: true };
+    group.add(routeHead);
+
+    group.userData = {
+      routePoints,
+      totalDistance,
+      startedAt: window.performance.now(),
+      animationDuration,
+    };
 
     scene.add(group);
     routeGroupRef.current = group;
     return { group, routePoints };
   }
 
-  function createRouteForOffice(office) {
+  function updateRouteAnimation(now) {
+    const routeGroup = routeGroupRef.current;
+    const routePoints = routeGroup?.userData.routePoints;
+    const totalDistance = routeGroup?.userData.totalDistance ?? 0;
+    const animationDuration = routeGroup?.userData.animationDuration ?? 0;
+    const startedAt = routeGroup?.userData.startedAt ?? now;
+
+    if (!routeGroup || !routePoints || totalDistance <= 0 || animationDuration <= 0) {
+      return;
+    }
+
+    const progress = THREE.MathUtils.clamp(
+      (now - startedAt) / animationDuration,
+      0,
+      1,
+    );
+    const easedProgress = easeInOutCubic(progress);
+    const visibleDistance = totalDistance * easedProgress;
+    const routeHeadPosition = getRoutePointAtDistance(
+      routePoints,
+      visibleDistance,
+    );
+
+    routeGroup.children.forEach((child) => {
+      if (child.userData.isAnimatedRouteSegment) {
+        const segmentStart = child.userData.routeStartDistance ?? 0;
+        const segmentEnd = child.userData.routeEndDistance ?? segmentStart;
+        const segmentLength = child.userData.segmentLength ?? 0;
+        const segmentProgress = THREE.MathUtils.clamp(
+          (visibleDistance - segmentStart) / Math.max(segmentEnd - segmentStart, 0.001),
+          0,
+          1,
+        );
+
+        child.visible = segmentProgress > 0;
+        child.scale.y = Math.max(segmentLength * segmentProgress, 0.001);
+        return;
+      }
+
+      if (child.userData.isRouteMarker) {
+        child.visible = visibleDistance >= (child.userData.revealDistance ?? 0);
+        return;
+      }
+
+      if (child.userData.isRouteHead && routeHeadPosition) {
+        child.visible = true;
+        child.position.copy(routeHeadPosition);
+        child.position.y += Math.sin(now * 0.012) * 0.012;
+      }
+    });
+  }
+
+  function createRouteForOffice(office, displayFloorNumber = getRouteStartFloorNumber()) {
     const routeNode = getOfficeRouteNode(office);
     const nodePositions = nodePositionsRef.current;
     const startNode = getRouteStartNode(nodePositions);
+    const bounds = modelBoundsRef.current;
+    const floorMetadata = floorMetadataRef.current;
     let routePoints = [];
     let routeStatus = "ready";
 
@@ -1106,12 +2133,15 @@ export default function ThreeMapViewer({
 
     if (routePoints.length < 2) {
       const navmeshRouteData = navmeshRouteDataRef.current;
-      const bounds = modelBoundsRef.current;
-      const targetPosition = getNavmeshDestinationPosition(office, bounds);
+      const targetPosition = getNavmeshDestinationPosition(
+        office,
+        bounds,
+        floorMetadata,
+      );
 
       if (navmeshRouteData && bounds && targetPosition) {
         routePoints = createNavmeshRoutePoints(
-          getNavmeshStartPosition(bounds),
+          getNavmeshStartPosition(bounds, floorMetadata),
           targetPosition,
           navmeshRouteData,
         );
@@ -1127,23 +2157,50 @@ export default function ThreeMapViewer({
       return [];
     }
 
-    createRouteGroup(routePoints);
-    if (mountRef.current) {
-      mountRef.current.dataset.routeStatus = routeStatus;
+    const focusedRoutePoints = getFocusedRoutePoints(
+      routePoints,
+      displayFloorNumber,
+      bounds,
+      floorMetadata,
+    );
+    if (focusedRoutePoints.length < 2) {
+      disposeRouteGroup();
+      if (mountRef.current) {
+        mountRef.current.dataset.routeStatus = `no-route-floor-${displayFloorNumber}`;
+      }
+      return [];
     }
-    return routePoints;
+
+    const hallwayRoutePoints = createHallwayRoutePoints(focusedRoutePoints);
+
+    createRouteGroup(hallwayRoutePoints, displayFloorNumber);
+    if (mountRef.current) {
+      mountRef.current.dataset.routeStatus = `${routeStatus}-floor-${displayFloorNumber}-points-${hallwayRoutePoints.length}`;
+    }
+    return hallwayRoutePoints;
   }
 
-  function enterRouteForOffice(office, instant = false) {
-    const points = createRouteForOffice(office);
+  function enterRouteForOffice(
+    office,
+    instant = false,
+    displayFloorNumber = getRouteStartFloorNumber(),
+  ) {
+    const points = createRouteForOffice(office, displayFloorNumber);
     const bounds = modelBoundsRef.current;
+    const floorMetadata = floorMetadataRef.current;
+    setVisibleFloor(displayFloorNumber);
 
     if (points.length < 2 || !bounds) {
       focusOffice(office, instant);
       return;
     }
 
-    const { target, cameraPosition } = getKioskRouteView(points, bounds);
+    const { target, cameraPosition } = getKioskRouteView(
+      points,
+      bounds,
+      displayFloorNumber,
+      floorMetadata,
+    );
 
     setFocusMarker(points[points.length - 1]);
     animateView(target, cameraPosition, instant);
@@ -1152,43 +2209,46 @@ export default function ThreeMapViewer({
   function focusFloor(floor, instant = false) {
     const bounds = modelBoundsRef.current;
     const floorNumber = getFloorNumber(floor);
-    const floorNodes = FLOOR_ROUTE_NODES[floor] ?? FLOOR_ROUTE_NODES["1st Floor"];
-    const floorEntryNodes = FLOOR_ENTRY_NODES[floorNumber] ?? FLOOR_ENTRY_NODES[1];
-    const nodePositions = nodePositionsRef.current;
-    const corridorStart = getFirstNodePosition(nodePositions, floorEntryNodes);
-    const corridorTarget = getFirstNodePosition(nodePositions, floorNodes);
+    const floorMetadata = floorMetadataRef.current;
 
-    if (bounds && corridorStart && corridorTarget) {
-      const eyeHeight = Math.max(bounds.getSize(new THREE.Vector3()).y * 0.055, 0.34);
-      const sideOffset = getRouteSideOffset(corridorStart, corridorTarget, 0.48);
+    setVisibleFloor(floorNumber);
 
-      animateView(
-        corridorTarget
-          .clone()
-          .add(sideOffset.clone().multiplyScalar(0.2))
-          .add(new THREE.Vector3(0, eyeHeight * 0.72, 0)),
-        corridorStart
-          .clone()
-          .add(sideOffset)
-          .add(new THREE.Vector3(0, eyeHeight, 0)),
-        instant,
-      );
+    if (!bounds) {
       return;
     }
 
-    const focusPosition =
-      getFirstNodePosition(nodePositions, floorNodes)?.clone() ??
-      getFloorFocusPosition(floor, bounds);
+    const selectedOffice = selectedOfficeRef.current;
+    if (selectedOffice) {
+      const routePoints = createRouteForOffice(selectedOffice, floorNumber);
 
-    if (!focusPosition || !bounds) {
-      return;
+      if (routePoints.length >= 2) {
+        const { target, cameraPosition } = getKioskRouteView(
+          routePoints,
+          bounds,
+          floorNumber,
+          floorMetadata,
+        );
+        setFocusMarker(routePoints[routePoints.length - 1]);
+        animateView(target, cameraPosition, instant);
+        return;
+      }
     }
 
-    animateView(
-      focusPosition,
-      focusPosition.clone().add(getFloorCameraOffset(bounds)),
-      instant,
+    disposeRouteGroup();
+    if (focusMarkerRef.current) {
+      focusMarkerRef.current.visible = false;
+    }
+    if (mountRef.current) {
+      mountRef.current.dataset.routeStatus = `floor-${floorNumber}`;
+    }
+
+    const { target, cameraPosition } = getFloorOverviewView(
+      floorNumber,
+      bounds,
+      floorMetadata,
     );
+
+    animateView(target, cameraPosition, instant);
   }
 
   function zoomModel(direction) {
@@ -1287,8 +2347,10 @@ export default function ThreeMapViewer({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.minDistance = 2;
-    controls.maxDistance = 40;
+    controls.minDistance = 0.75;
+    controls.maxDistance = 55;
+    controls.panSpeed = 0.75;
+    controls.rotateSpeed = 0.7;
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
@@ -1296,14 +2358,14 @@ export default function ThreeMapViewer({
     focusMarker.visible = false;
 
     const markerMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f7a55,
-      emissive: 0x064e3b,
+      color: ROUTE_COLOR,
+      emissive: ROUTE_EMISSIVE_COLOR,
       emissiveIntensity: 0.22,
       metalness: 0.08,
       roughness: 0.35,
     });
     const markerRingMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0f7a55,
+      color: ROUTE_COLOR,
       transparent: true,
       opacity: 0.38,
       side: THREE.DoubleSide,
@@ -1364,15 +2426,23 @@ export default function ThreeMapViewer({
         }
 
         loadedModel = gltf.scene;
+        modelRootRef.current = loadedModel;
+        loadedModel.updateMatrixWorld(true);
 
         loadedModel.traverse((child) => {
-          if (shouldHideRouteHelper(child.name)) {
+          if (child.isMesh && isNavmeshObject(child)) {
+            styleNavmeshFloorMesh(child);
+            return;
+          }
+
+          if (shouldHideRouteHelper(child)) {
             child.visible = false;
           }
 
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
+            styleBuildingMesh(child);
           }
         });
 
@@ -1380,7 +2450,7 @@ export default function ThreeMapViewer({
         const size = bounds.getSize(new THREE.Vector3());
         const center = bounds.getCenter(new THREE.Vector3());
         const largestSide = Math.max(size.x, size.y, size.z) || 1;
-        const scale = 7 / largestSide;
+        const scale = 9 / largestSide;
 
         loadedModel.scale.setScalar(scale);
         loadedModel.position.sub(center.multiplyScalar(scale));
@@ -1388,6 +2458,11 @@ export default function ThreeMapViewer({
 
         loadedModel.updateMatrixWorld(true);
         modelBoundsRef.current = new THREE.Box3().setFromObject(loadedModel);
+        const floorMetadata = getFloorMetadata(
+          loadedModel,
+          modelBoundsRef.current,
+        );
+        floorMetadataRef.current = floorMetadata;
 
         const nodePositions = new Map();
         const modelRouteEdges = [];
@@ -1406,11 +2481,29 @@ export default function ThreeMapViewer({
 
           nodePositions.set(routePointName, getObjectCenter(child));
         });
+        const syntheticRouteData = createSyntheticRouteData(
+          modelBoundsRef.current,
+          floorMetadata,
+        );
+        syntheticRouteData.nodePositions.forEach((position, nodeName) => {
+          if (!nodePositions.has(nodeName)) {
+            nodePositions.set(nodeName, position);
+          }
+        });
         nodePositionsRef.current = nodePositions;
-        const generatedRouteEdges = createGeneratedRouteEdges(nodePositions);
-        const nextRouteEdges = [...modelRouteEdges, ...generatedRouteEdges];
-        routeEdgesRef.current =
-          nextRouteEdges.length > 0 ? nextRouteEdges : fallbackRouteEdges;
+        routeEdgesRef.current = mergeRouteEdges([
+          ...fallbackRouteEdges,
+          ...syntheticRouteData.routeEdges,
+          ...modelRouteEdges,
+        ]);
+        disposeOfficeLabels();
+        const officeLabelsGroup = createOfficeLabels(
+          modelBoundsRef.current,
+          floorMetadata,
+          nodePositions,
+        );
+        scene.add(officeLabelsGroup);
+        officeLabelsGroupRef.current = officeLabelsGroup;
         navmeshRouteDataRef.current = buildNavmeshRouteData(loadedModel);
 
         mountElement.dataset.routeNodes = String(nodePositions.size);
@@ -1420,6 +2513,9 @@ export default function ThreeMapViewer({
         );
         mountElement.dataset.navmeshEdges = String(
           navmeshRouteDataRef.current?.routeEdges.length ?? 0,
+        );
+        mountElement.dataset.navmeshComponents = String(
+          navmeshRouteDataRef.current?.componentCount ?? 0,
         );
 
         setStatus("ready");
@@ -1439,8 +2535,9 @@ export default function ThreeMapViewer({
       }
     );
 
-    function animate() {
+    function animate(now = window.performance.now()) {
       frameId = window.requestAnimationFrame(animate);
+      updateRouteAnimation(now);
       controls.update();
       renderer.render(scene, camera);
     }
@@ -1463,12 +2560,16 @@ export default function ThreeMapViewer({
       }
 
       disposeRouteGroup();
+      disposeOfficeLabels();
       disposeObject(focusMarker);
       sceneRef.current = null;
       cameraRef.current = null;
       controlsRef.current = null;
       focusMarkerRef.current = null;
       modelBoundsRef.current = null;
+      modelRootRef.current = null;
+      officeLabelsGroupRef.current = null;
+      floorMetadataRef.current = new Map();
       nodePositionsRef.current = new Map();
       navmeshRouteDataRef.current = null;
       routeEdgesRef.current = fallbackRouteEdges;
