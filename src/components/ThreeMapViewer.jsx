@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { offices as municipalOffices } from "../data/offices.js";
+import { offices as cityHallOffices } from "../data/offices.js";
 
-const DEFAULT_MODEL_PATH = "/models/OCH AF.glb";
+const DEFAULT_MODEL_PATHS = [
+  "/newmodel/OCH GF only (2).glb",
+  "/newmodel/OCH 2F only (1).glb",
+  "/newmodel/OCH 3F only (1).glb",
+  "/newmodel/OCH AF NAVMESH (1).glb",
+  "/newmodel/OCH FC NAVMESH.glb",
+];
 const DEFAULT_MAP_POSITION = { x: 50, y: 50 };
 const FLOOR_NUMBERS = [1, 2, 3];
 const START_FLOOR_NUMBER = 1;
@@ -19,20 +25,18 @@ const FLOOR_CORRIDOR_POSITIONS = {
   back: { x: 50, y: 76 },
 };
 const FLOOR_VERTICAL_POSITIONS = {
-  elevator: { x: 42, y: 74 },
-  stairs: { x: 36, y: 82 },
-};
-const FLOOR_SIDE_NODE_POSITIONS = {
-  left: [
-    { x: 38, y: 35 },
-    { x: 31, y: 58 },
-    { x: 42, y: 74 },
-  ],
-  right: [
-    { x: 62, y: 36 },
-    { x: 68, y: 58 },
-    { x: 68, y: 74 },
-  ],
+  1: {
+    elevator: { x: 40, y: 46 },
+    stairs: { x: 60, y: 49 },
+  },
+  2: {
+    elevator: { x: 33, y: 47 },
+    stairs: { x: 60, y: 51 },
+  },
+  3: {
+    elevator: { x: 46, y: 46 },
+    stairs: { x: 70, y: 51 },
+  },
 };
 const FLOOR_MODEL_STYLES = {
   1: {
@@ -54,7 +58,7 @@ const DEFAULT_MODEL_STYLE = {
 };
 const ROUTE_COLOR = 0xf97316;
 const ROUTE_EMISSIVE_COLOR = 0x7c2d12;
-const ROUTE_FLOOR_LIFT = 0.08;
+const ROUTE_FLOOR_LIFT = 0.035;
 const ROUTE_CORNER_MIN_DISTANCE = 0.08;
 const ROUTE_ANIMATION_MS_PER_UNIT = 760;
 const ROUTE_ANIMATION_MIN_MS = 1800;
@@ -134,21 +138,8 @@ for (const floorNumber of [1, 2, 3]) {
   fallbackRouteEdges.push(
     [`node_corridor_${floorNumber}F_front`, `node_corridor_${floorNumber}F_mid`],
     [`node_corridor_${floorNumber}F_mid`, `node_corridor_${floorNumber}F_back`],
-  );
-
-  for (const side of ["left", "right"]) {
-    fallbackRouteEdges.push(
-      [`node_corridor_${floorNumber}F_front`, `node_floor${floorNumber}_${side}_1`],
-      [`node_corridor_${floorNumber}F_mid`, `node_floor${floorNumber}_${side}_2`],
-      [`node_corridor_${floorNumber}F_back`, `node_floor${floorNumber}_${side}_3`],
-      [`node_floor${floorNumber}_${side}_1`, `node_floor${floorNumber}_${side}_2`],
-      [`node_floor${floorNumber}_${side}_2`, `node_floor${floorNumber}_${side}_3`],
-    );
-  }
-
-  fallbackRouteEdges.push(
-    [`node_stairs_${floorNumber}F`, `node_floor${floorNumber}_left_3`],
-    [`node_elevator_${floorNumber}F`, `node_floor${floorNumber}_left_3`],
+    [`node_stairs_${floorNumber}F`, `node_corridor_${floorNumber}F_mid`],
+    [`node_elevator_${floorNumber}F`, `node_corridor_${floorNumber}F_mid`],
   );
 }
 
@@ -812,24 +803,6 @@ function addUniqueRouteEdge(routeEdges, seenEdges, from, to) {
   routeEdges.push([from, to]);
 }
 
-function getFloorConnectionNodes(floorNumber) {
-  const nodes = [
-    `node_corridor_${floorNumber}F_front`,
-    `node_corridor_${floorNumber}F_mid`,
-    `node_corridor_${floorNumber}F_back`,
-    `node_stairs_${floorNumber}F`,
-    `node_elevator_${floorNumber}F`,
-  ];
-
-  for (const side of ["left", "right"]) {
-    for (const index of [1, 2, 3]) {
-      nodes.push(`node_floor${floorNumber}_${side}_${index}`);
-    }
-  }
-
-  return nodes;
-}
-
 function getRouteNodeCandidates(routeNode) {
   const normalizedRouteNode = normalizeRouteNodeName(routeNode);
   const candidates = [routeNode, normalizedRouteNode].filter(Boolean);
@@ -841,6 +814,10 @@ function getRouteNodeCandidates(routeNode) {
   }
 
   return [...new Set(candidates)];
+}
+
+function isFixedWayfindingOffice(office) {
+  return office?.id === "main-entrance" || office?.id === "main-lobby";
 }
 
 function getOfficeDoorMapPosition(mapPosition = DEFAULT_MAP_POSITION) {
@@ -858,32 +835,19 @@ function getOfficeDoorMapPosition(mapPosition = DEFAULT_MAP_POSITION) {
   return { x, y };
 }
 
-function getMapPositionSide(mapPosition = DEFAULT_MAP_POSITION) {
-  const x = mapPosition.x ?? DEFAULT_MAP_POSITION.x;
-
-  if (x < 42) {
-    return "left";
-  }
-
-  if (x > 58) {
-    return "right";
-  }
-
-  return "center";
+function getFloorVerticalPosition(floorNumber, type) {
+  return (
+    FLOOR_VERTICAL_POSITIONS[floorNumber]?.[type] ??
+    FLOOR_VERTICAL_POSITIONS[START_FLOOR_NUMBER][type] ??
+    DEFAULT_MAP_POSITION
+  );
 }
 
-function getMapPositionDepthIndex(mapPosition = DEFAULT_MAP_POSITION) {
-  const y = mapPosition.y ?? DEFAULT_MAP_POSITION.y;
-
-  if (y < 42) {
-    return 1;
-  }
-
-  if (y < 64) {
-    return 2;
-  }
-
-  return 3;
+function getHallwayMapPosition(doorMapPosition = DEFAULT_MAP_POSITION) {
+  return {
+    x: FLOOR_CORRIDOR_POSITIONS.mid.x,
+    y: doorMapPosition.y ?? DEFAULT_MAP_POSITION.y,
+  };
 }
 
 function getNearestCorridorName(floorNumber, mapPosition = DEFAULT_MAP_POSITION) {
@@ -929,25 +893,27 @@ function createSyntheticRouteData(bounds, floorMetadata) {
       addNode(`node_corridor_${floorNumber}F_${corridorName}`, floorNumber, mapPosition);
     }
 
-    for (const [side, mapPositions] of Object.entries(FLOOR_SIDE_NODE_POSITIONS)) {
-      mapPositions.forEach((mapPosition, index) => {
-        addNode(`node_floor${floorNumber}_${side}_${index + 1}`, floorNumber, mapPosition);
-      });
-    }
-
     addNode(
       `node_stairs_${floorNumber}F`,
       floorNumber,
-      FLOOR_VERTICAL_POSITIONS.stairs,
+      getFloorVerticalPosition(floorNumber, "stairs"),
     );
     addNode(
       `node_elevator_${floorNumber}F`,
       floorNumber,
-      FLOOR_VERTICAL_POSITIONS.elevator,
+      getFloorVerticalPosition(floorNumber, "elevator"),
     );
 
-    addNode(`${prefix}_MAIN_STAIR_DOOR`, floorNumber, FLOOR_VERTICAL_POSITIONS.stairs);
-    addNode(`${prefix}_ELEVATOR_DOOR`, floorNumber, FLOOR_VERTICAL_POSITIONS.elevator);
+    addNode(
+      `${prefix}_MAIN_STAIR_DOOR`,
+      floorNumber,
+      getFloorVerticalPosition(floorNumber, "stairs"),
+    );
+    addNode(
+      `${prefix}_ELEVATOR_DOOR`,
+      floorNumber,
+      getFloorVerticalPosition(floorNumber, "elevator"),
+    );
     addEdge(`${prefix}_MAIN_STAIR_DOOR`, `node_stairs_${floorNumber}F`);
     addEdge(`${prefix}_ELEVATOR_DOOR`, `node_elevator_${floorNumber}F`);
 
@@ -990,7 +956,11 @@ function createSyntheticRouteData(bounds, floorMetadata) {
   addEdge("G_ELEVATOR_DOOR", "2_ELEVATOR_DOOR");
   addEdge("2_ELEVATOR_DOOR", "3_ELEVATOR_DOOR");
 
-  for (const office of municipalOffices) {
+  for (const office of cityHallOffices) {
+    if (isFixedWayfindingOffice(office)) {
+      continue;
+    }
+
     const floorNumber = getFloorNumber(office.floor);
     const routeNodeNames = getRouteNodeCandidates(
       office.routeNode ?? OFFICE_ROUTE_NODES[office.id],
@@ -1009,9 +979,9 @@ function createSyntheticRouteData(bounds, floorMetadata) {
     const isElevatorOffice =
       normalizedText.includes("elevator") || normalizedText.includes("lift");
     const doorMapPosition = isStairOffice
-      ? FLOOR_VERTICAL_POSITIONS.stairs
+      ? getFloorVerticalPosition(floorNumber, "stairs")
       : isElevatorOffice
-        ? FLOOR_VERTICAL_POSITIONS.elevator
+        ? getFloorVerticalPosition(floorNumber, "elevator")
         : getOfficeDoorMapPosition(office.mapPosition);
 
     routeNodeNames.forEach((routeNodeName) => {
@@ -1033,23 +1003,10 @@ function createSyntheticRouteData(bounds, floorMetadata) {
     }
 
     const hallwayNode = `node_${office.id}_hallway`;
-    const officeSide = getMapPositionSide(office.mapPosition);
-    const depthIndex = getMapPositionDepthIndex(doorMapPosition);
-
-    if (officeSide !== "center") {
-      addNode(hallwayNode, floorNumber, doorMapPosition);
-      addEdge(mainRouteNode, hallwayNode);
-      addEdge(hallwayNode, `node_floor${floorNumber}_${officeSide}_${depthIndex}`);
-      continue;
-    }
-
-    const hallwayMapPosition = {
-      x: 50,
-      y: doorMapPosition.y,
-    };
+    const hallwayMapPosition = getHallwayMapPosition(doorMapPosition);
     addNode(hallwayNode, floorNumber, hallwayMapPosition);
     addEdge(mainRouteNode, hallwayNode);
-    addEdge(hallwayNode, getNearestCorridorName(floorNumber, doorMapPosition));
+    addEdge(hallwayNode, getNearestCorridorName(floorNumber, hallwayMapPosition));
   }
 
   return { nodePositions, routeEdges };
@@ -1064,6 +1021,14 @@ function mergeRouteEdges(routeEdges) {
   });
 
   return mergedRouteEdges;
+}
+
+function normalizeModelPaths(modelPaths, modelPath) {
+  const sourcePaths = modelPath ? [modelPath] : modelPaths;
+  const normalizedPaths = (Array.isArray(sourcePaths) ? sourcePaths : [sourcePaths])
+    .filter(Boolean);
+
+  return normalizedPaths.length > 0 ? normalizedPaths : DEFAULT_MODEL_PATHS;
 }
 
 function getCameraOffset(bounds) {
@@ -1642,7 +1607,7 @@ function createOfficeLabels(bounds, floorMetadata, nodePositions) {
   const group = new THREE.Group();
   group.name = "generated_office_labels";
 
-  municipalOffices.forEach((office) => {
+  cityHallOffices.forEach((office) => {
     const position = getOfficeLabelPosition(
       office,
       bounds,
@@ -1702,7 +1667,8 @@ function createRouteSegment(
 }
 
 export default function ThreeMapViewer({
-  modelPath = DEFAULT_MODEL_PATH,
+  modelPath,
+  modelPaths = DEFAULT_MODEL_PATHS,
   selectedOffice,
   viewCommand,
 }) {
@@ -1721,6 +1687,11 @@ export default function ThreeMapViewer({
   const routeEdgesRef = useRef(fallbackRouteEdges);
   const routeGroupRef = useRef(null);
   const selectedOfficeRef = useRef(selectedOffice);
+  const activeModelPaths = useMemo(
+    () => normalizeModelPaths(modelPaths, modelPath),
+    [modelPath, modelPaths],
+  );
+  const modelSourceKey = activeModelPaths.join("|");
   const [status, setStatus] = useState("loading");
 
   function animateView(target, cameraPosition, instant = false) {
@@ -1915,18 +1886,18 @@ export default function ThreeMapViewer({
 
   function getRouteOverlayY(points, floorNumber) {
     const floorData = floorMetadataRef.current.get(floorNumber);
-    const floorBounds = floorData?.visualBounds ?? floorData?.navmeshBounds;
+    const floorRouteY = floorData?.routeY;
 
-    if (floorBounds && !floorBounds.isEmpty()) {
-      return floorBounds.max.y + ROUTE_FLOOR_LIFT;
+    if (Number.isFinite(floorRouteY)) {
+      return floorRouteY + ROUTE_FLOOR_LIFT;
     }
 
-    const routeTopY = points.reduce(
-      (maxY, point) => Math.max(maxY, point.y),
+    const routeFloorY = points.reduce(
+      (minY, point) => Math.min(minY, point.y),
       points[0]?.y ?? 0,
     );
 
-    return routeTopY + ROUTE_FLOOR_LIFT;
+    return routeFloorY + ROUTE_FLOOR_LIFT;
   }
 
   function createRouteGroup(points, floorNumber) {
@@ -1953,9 +1924,9 @@ export default function ThreeMapViewer({
       ROUTE_ANIMATION_MAX_MS,
     );
     const baseMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: ROUTE_COLOR,
       transparent: true,
-      opacity: 0.68,
+      opacity: 0.16,
       depthTest: true,
       depthWrite: false,
     });
@@ -1972,11 +1943,11 @@ export default function ThreeMapViewer({
       const start = routePoints[index];
       const end = routePoints[index + 1];
       const segmentDistance = start.distanceTo(end);
-      const baseSegment = createRouteSegment(start, end, 0.028, baseMaterial, 30);
+      const baseSegment = createRouteSegment(start, end, 0.021, baseMaterial, 30);
       const pathSegment = createRouteSegment(
         start,
         end,
-        0.017,
+        0.019,
         pathMaterial,
         31,
         true,
@@ -2418,14 +2389,36 @@ export default function ThreeMapViewer({
     resizeRenderer();
 
     const loader = new GLTFLoader();
-    loader.load(
-      modelPath,
-      (gltf) => {
+    const loadModel = (sourcePath) =>
+      new Promise((resolve, reject) => {
+        loader.load(
+          sourcePath,
+          (gltf) => resolve({ sourcePath, scene: gltf.scene }),
+          undefined,
+          reject,
+        );
+      });
+
+    Promise.all(activeModelPaths.map(loadModel)).then(
+      (loadedScenes) => {
         if (isDisposed) {
           return;
         }
 
-        loadedModel = gltf.scene;
+        loadedModel = new THREE.Group();
+        loadedModel.name = "Olongapo_City_Hall_Model";
+        loadedModel.userData.modelSources = activeModelPaths;
+
+        loadedScenes.forEach(({ sourcePath, scene: sourceScene }) => {
+          sourceScene.name = sourcePath
+            .split("/")
+            .pop()
+            ?.replace(/\.[^.]+$/, "")
+            ?.replace(/[^A-Za-z0-9]+/g, "_") ?? "model_part";
+          sourceScene.userData.sourcePath = sourcePath;
+          loadedModel.add(sourceScene);
+        });
+
         modelRootRef.current = loadedModel;
         loadedModel.updateMatrixWorld(true);
 
@@ -2508,6 +2501,7 @@ export default function ThreeMapViewer({
 
         mountElement.dataset.routeNodes = String(nodePositions.size);
         mountElement.dataset.routeEdges = String(routeEdgesRef.current.length);
+        mountElement.dataset.modelSources = String(activeModelPaths.length);
         mountElement.dataset.navmeshNodes = String(
           navmeshRouteDataRef.current?.nodePositions.size ?? 0,
         );
@@ -2525,7 +2519,6 @@ export default function ThreeMapViewer({
           enterRouteForOffice(selectedOfficeRef.current, true);
         }
       },
-      undefined,
       () => {
         if (isDisposed) {
           return;
@@ -2575,7 +2568,7 @@ export default function ThreeMapViewer({
       routeEdgesRef.current = fallbackRouteEdges;
       focusAnimationRef.current = null;
     };
-  }, [modelPath]);
+  }, [modelSourceKey]);
 
   return (
     <div className="three-viewer" ref={mountRef}>

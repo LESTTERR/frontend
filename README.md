@@ -1,12 +1,12 @@
-# MuniciMap Frontend
+# Olongapo City Hall Navigator Frontend
 
-This is the first front-end version for a municipal 3D map and office pathfinding system.
+This is the first front-end version for the Olongapo City Hall 3D map and office pathfinding system.
 
 ## What is inside
 
 - React front end using Vite
 - Landing screen with "touch anywhere to proceed"
-- Header with municipal office name, live time, and live date
+- Header with city hall name, live time, and live date
 - Office finder sidebar with search
 - Main map area ready for a future Blender/Three.js model
 - Olongapo City Hall `.glb` model loaded with Three.js
@@ -38,20 +38,12 @@ frontend/
     services/
       firebase.js
   public/
-    models/
-      OCH AF.glb
-      reference/
-        OCH AF only.glb
-        OCH AF NAVMESH.glb
-        OCH GF (2).glb
-        OCH GF only (1).glb
-        OCH GF NAVMESH (1).glb
-        OCH 2F.glb
-        OCH 2F only.glb
-        OCH 2F NAVMESH.glb
-        OCH 3F.glb
-        OCH 3F only.glb
-        OCH 3F NAVMESH.glb
+    newmodel/
+      OCH GF only (2).glb
+      OCH 2F only (1).glb
+      OCH 3F only (1).glb
+      OCH AF NAVMESH (1).glb
+      OCH FC NAVMESH.glb
 ```
 
 ## How to run
@@ -76,14 +68,16 @@ http://localhost:5173
 
 ## Where to edit
 
-- Change the municipality name in `src/App.jsx`.
+- Change the city name in `src/App.jsx`.
 - Add or update offices in `src/data/offices.js`.
-- The current 3D model is the all-floor combined model in `public/models/OCH AF.glb`.
+- The active 3D model set is loaded from `public/newmodel/`.
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
-- Keep only the active whole-building GLB at the top level of `public/models/`. Put split floor, navmesh-only, or reference exports in `public/models/reference/` so they do not get confused with the active model.
-- If you export a newer whole-building Blender model, place that combined file in `public/models/` and update the `DEFAULT_MODEL_PATH` value in `src/components/ThreeMapViewer.jsx` if the main combined file name changes.
+- The viewer currently uses separate floor visuals for clean floor focus: `OCH GF only (2).glb`, `OCH 2F only (1).glb`, and `OCH 3F only (1).glb`.
+- It also loads `OCH AF NAVMESH (1).glb` for per-floor navmesh data and `OCH FC NAVMESH.glb` for the all-floor connector navmesh.
+- Combined files such as `OCH FC.glb` and per-floor combined files are kept as export references, but are not loaded by default because they would duplicate geometry or reduce floor-by-floor control.
+- If you export newer Blender models, keep the same role-based split or update the `DEFAULT_MODEL_PATHS` list in `src/components/ThreeMapViewer.jsx`.
 - Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and hide navmesh objects named `Navmesh`, `1F_Navmesh`, `2F_Navmesh`, or `3F_Navmesh`.
-- The current `models` GLBs contain floor meshes and navmesh meshes, but not individual office marker objects. Office destinations use the `routeNode` and `mapPosition` anchors in `src/data/offices.js`, with generated corridor, stair, and elevator connection points for all floors.
+- The current `newmodel` GLBs contain floor meshes and navmesh meshes, but not individual office marker objects. Office destinations use the `routeNode` and `mapPosition` anchors in `src/data/offices.js`, with generated corridor, stair, and elevator connection points for all floors.
 - Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
 
 ## GitHub group collaboration guide

@@ -1,7 +1,7 @@
 import { CalendarDays, Clock, Landmark } from "lucide-react";
 import useClock from "../hooks/useClock.js";
 
-export default function Header({ municipalName }) {
+export default function Header({ cityName }) {
   const { time, date } = useClock();
 
   return (
@@ -11,8 +11,8 @@ export default function Header({ municipalName }) {
           <Landmark size={22} />
         </span>
         <div>
-          <p className="brand-label">MuniciMap</p>
-          <h1>{municipalName}</h1>
+          <p className="brand-label">City Hall Navigator</p>
+          <h1>{cityName}</h1>
         </div>
       </div>
 

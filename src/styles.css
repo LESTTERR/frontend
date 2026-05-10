@@ -141,10 +141,13 @@ button {
   position: relative;
   overflow: hidden;
   display: grid;
-  place-items: center;
-  padding: 120px 24px 160px;
-  text-align: center;
+  align-items: center;
+  padding: 120px clamp(22px, 6vw, 86px) 150px;
+  text-align: left;
   outline: none;
+  background:
+    linear-gradient(125deg, rgba(235, 247, 242, 0.96) 0%, rgba(238, 244, 250, 0.84) 48%, rgba(255, 251, 235, 0.72) 100%),
+    #eef5f1;
 }
 
 .landing-backdrop {
@@ -159,9 +162,9 @@ button {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(140deg, rgba(20, 107, 79, 0.18), transparent 38%),
-    linear-gradient(220deg, rgba(79, 126, 168, 0.14), transparent 42%),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.1));
+    linear-gradient(115deg, rgba(20, 107, 79, 0.16), transparent 34%),
+    linear-gradient(230deg, rgba(79, 126, 168, 0.16), transparent 42%),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.18));
 }
 
 .landing-grid {
@@ -173,6 +176,97 @@ button {
     linear-gradient(90deg, rgba(20, 107, 79, 0.1) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: linear-gradient(to bottom, transparent, black 18%, black 72%, transparent);
+}
+
+.landing-building-scene {
+  position: absolute;
+  right: clamp(18px, 5vw, 90px);
+  top: 16%;
+  width: min(50vw, 680px);
+  height: min(58vh, 520px);
+  transform: rotateX(58deg) rotateZ(-32deg);
+  transform-style: preserve-3d;
+  opacity: 0.96;
+}
+
+.landing-floor-plate {
+  position: absolute;
+  width: 76%;
+  height: 34%;
+  border: 1px solid rgba(20, 107, 79, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(20, 107, 79, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 107, 79, 0.08) 1px, transparent 1px),
+    rgba(255, 255, 255, 0.72);
+  background-size: 18px 18px;
+  box-shadow:
+    0 22px 54px rgba(24, 48, 47, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.plate-one {
+  left: 6%;
+  bottom: 4%;
+}
+
+.plate-two {
+  left: 16%;
+  bottom: 31%;
+}
+
+.plate-three {
+  left: 26%;
+  bottom: 58%;
+}
+
+.landing-route-beam {
+  position: absolute;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f97316, #fbbf24);
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.24);
+}
+
+.beam-one {
+  left: 18%;
+  bottom: 18%;
+  width: 38%;
+  transform: rotate(-12deg);
+}
+
+.beam-two {
+  left: 44%;
+  bottom: 38%;
+  width: 34%;
+  transform: rotate(48deg);
+}
+
+.beam-three {
+  left: 48%;
+  bottom: 68%;
+  width: 32%;
+  transform: rotate(-10deg);
+}
+
+.landing-scene-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.3);
+}
+
+.pin-entry {
+  left: 15%;
+  bottom: 17%;
+}
+
+.pin-office {
+  left: 76%;
+  bottom: 73%;
 }
 
 .landing-map-line {
@@ -226,9 +320,9 @@ button {
 .landing-content {
   position: relative;
   z-index: 1;
-  width: min(980px, 100%);
+  width: min(760px, 100%);
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: 24px;
 }
 
@@ -248,22 +342,23 @@ button {
 .landing-title-block {
   display: grid;
   gap: 10px;
-  justify-items: center;
+  justify-items: start;
 }
 
 .landing-title-block h2 {
-  max-width: 880px;
+  max-width: 760px;
   margin: 0;
   color: var(--ink);
-  font-size: 5.8rem;
+  font-size: clamp(4rem, 9vw, 7.25rem);
   line-height: 0.95;
+  letter-spacing: 0;
 }
 
 .landing-title-block p {
   max-width: 720px;
   margin: 0;
   color: var(--muted);
-  font-size: 1.35rem;
+  font-size: clamp(1.1rem, 2vw, 1.55rem);
   font-weight: 800;
 }
 
@@ -275,9 +370,9 @@ button {
   gap: 10px;
   padding: 14px 22px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 14px;
   color: white;
-  background: var(--green);
+  background: linear-gradient(135deg, var(--green), var(--green-strong));
   font-weight: 900;
   box-shadow: 0 18px 38px rgba(20, 107, 79, 0.28);
 }
@@ -288,7 +383,7 @@ button {
 
 .landing-quick-info {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 10px;
 }
@@ -300,7 +395,7 @@ button {
   gap: 8px;
   padding: 9px 12px;
   border: 1px solid rgba(216, 227, 221, 0.9);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.82);
   font-size: 0.92rem;
@@ -319,7 +414,7 @@ button {
   gap: 14px;
   padding: 12px;
   border: 1px solid rgba(216, 227, 221, 0.92);
-  border-radius: 8px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(18px);
   box-shadow: 0 18px 46px rgba(24, 48, 47, 0.14);
@@ -332,7 +427,7 @@ button {
   gap: 8px;
   flex: 0 0 auto;
   padding: 0 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
   background: var(--red);
   font-size: 0.78rem;
@@ -357,7 +452,7 @@ button {
   gap: 9px;
   padding: 9px 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--ink);
   background: var(--paper);
   text-decoration: none;
@@ -744,39 +839,6 @@ button {
   transform: translate(-50%, -50%) scale(1.03);
 }
 
-.destination-label {
-  position: absolute;
-  z-index: 5;
-  min-width: 170px;
-  max-width: min(260px, 42vw);
-  display: grid;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid rgba(185, 77, 68, 0.28);
-  border-radius: 8px;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.94);
-  transform: translate(18px, -50%);
-  box-shadow: 0 16px 30px rgba(24, 48, 47, 0.14);
-}
-
-.destination-label strong {
-  font-size: 0.9rem;
-}
-
-.destination-label span {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.model-label {
-  top: 58px;
-  right: 16px;
-  left: auto;
-  transform: none;
-}
-
 .map-caption {
   position: absolute;
   left: 24px;
@@ -892,6 +954,12 @@ button {
     padding-inline: 16px;
   }
 
+  .landing-building-scene {
+    right: -80px;
+    width: min(64vw, 560px);
+    opacity: 0.54;
+  }
+
   .landing-title-block h2 {
     font-size: 4.4rem;
   }
@@ -959,14 +1027,30 @@ button {
     overflow: auto;
     place-items: start center;
     padding: 150px 16px 22px;
+    text-align: center;
   }
 
   .landing-backdrop {
     inset: 120px 0 0;
   }
 
+  .landing-building-scene {
+    top: 10%;
+    right: -170px;
+    width: 720px;
+    height: 420px;
+    opacity: 0.24;
+  }
+
   .landing-content {
     gap: 18px;
+    justify-items: center;
+  }
+
+  .landing-title-block,
+  .landing-quick-info {
+    justify-items: center;
+    justify-content: center;
   }
 
   .landing-title-block h2 {
@@ -1095,19 +1179,6 @@ button {
     min-height: 430px;
   }
 
-  .destination-label {
-    min-width: 150px;
-    max-width: 210px;
-    transform: translate(-50%, 28px);
-  }
-
-  .model-label {
-    top: 16px;
-    right: 16px;
-    left: auto;
-    transform: none;
-  }
-
   .map-caption {
     position: static;
     margin-top: 12px;
@@ -1126,7 +1197,7 @@ button {
 .home-shell {
   height: 100vh;
   min-height: 620px;
-  grid-template-columns: minmax(330px, 400px) minmax(0, 1fr);
+  grid-template-columns: minmax(270px, 310px) minmax(0, 1fr);
   gap: 0;
   overflow: hidden;
   padding: 0;
@@ -1149,7 +1220,7 @@ button {
 }
 
 .sidebar-brand-panel {
-  padding: 32px 24px 26px;
+  padding: 24px 18px 18px;
   color: white;
 }
 
@@ -1160,8 +1231,8 @@ button {
 }
 
 .sidebar-brand-icon {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -1185,14 +1256,14 @@ button {
 .sidebar-brand-row strong {
   display: block;
   color: white;
-  font-size: 1.55rem;
+  font-size: 1.28rem;
   line-height: 1.1;
 }
 
 .sidebar-search-panel {
   display: grid;
-  gap: 12px;
-  padding: 0 24px 28px;
+  gap: 10px;
+  padding: 0 18px 22px;
 }
 
 .sidebar-search-heading {
@@ -1204,11 +1275,11 @@ button {
 }
 
 .home-shell .search-box {
-  min-height: 64px;
+  min-height: 54px;
   margin: 0;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   color: var(--green);
   background: white;
   box-shadow: 0 4px 24px rgba(20, 107, 79, 0.18);
@@ -1232,17 +1303,17 @@ button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  margin: 20px 20px 4px;
-  padding: 13px 15px;
+  gap: 10px;
+  margin: 14px 14px 2px;
+  padding: 10px 11px;
   border: 1px solid #fde68a;
-  border-radius: 16px;
+  border-radius: 14px;
   background: #fffbeb;
 }
 
 .active-destination-icon {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -1258,20 +1329,20 @@ button {
 
 .active-destination strong {
   color: #92400e;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
 }
 
 .active-destination span {
   overflow: hidden;
   color: #d97706;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .active-destination em {
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   color: white;
   background: #f59e0b;
@@ -1283,8 +1354,8 @@ button {
 .office-section-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 18px 24px 12px;
+  gap: 10px;
+  padding: 14px 18px 10px;
   color: #64748b;
   font-size: 0.72rem;
   font-weight: 900;
@@ -1293,28 +1364,28 @@ button {
 }
 
 .office-section-heading span {
-  width: 4px;
-  height: 24px;
+  width: 3px;
+  height: 20px;
   border-radius: 999px;
   background: var(--green);
 }
 
 .home-shell .office-list {
   flex: 1 1 auto;
-  gap: 12px;
+  gap: 9px;
   min-height: 0;
-  padding: 0 20px 22px;
+  padding: 0 14px 18px;
   overflow: auto;
 }
 
 .home-shell .office-card {
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  min-height: 86px;
-  padding: 15px 18px;
+  gap: 10px;
+  min-height: 68px;
+  padding: 12px;
   border-color: #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: white;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
 }
@@ -1326,26 +1397,26 @@ button {
 }
 
 .office-card-icon {
-  width: 56px;
-  height: 56px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   border: 1px solid #cfe3d9;
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--green);
   background: #eef8f3;
 }
 
 .office-card-copy {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .home-shell .office-card strong {
   overflow: hidden;
   color: #1e293b;
-  font-size: 1rem;
+  font-size: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1355,7 +1426,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border: 1px solid #cfe3d9;
   border-radius: 999px;
   color: var(--green);
@@ -1403,8 +1474,8 @@ button {
   left: 0;
   right: 0;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 32px;
+  gap: 12px;
+  padding: 14px 24px;
 }
 
 .map-chip-group,
@@ -1416,13 +1487,13 @@ button {
 }
 
 .map-chip {
-  min-height: 42px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 10px 18px;
+  padding: 9px 14px;
   border: 1px solid #e8edf5;
-  border-radius: 16px;
+  border-radius: 14px;
   color: #334155;
   background: white;
   font-weight: 900;
@@ -1435,9 +1506,9 @@ button {
 }
 
 .home-shell .tool-button {
-  min-height: 42px;
+  min-height: 40px;
   border-color: #e8edf5;
-  border-radius: 16px;
+  border-radius: 14px;
   color: #475569;
   background: white;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.09);
@@ -1451,7 +1522,7 @@ button {
 
 .home-shell .map-preview {
   height: 100%;
-  padding: 72px 24px 92px;
+  padding: 66px 16px 82px;
 }
 
 .home-shell .map-floor {
@@ -1474,33 +1545,6 @@ button {
   color: var(--green);
 }
 
-.home-shell .model-label {
-  top: 92px;
-  right: 34px;
-  border: 0;
-  color: white;
-  background: #f59e0b;
-}
-
-.home-shell .destination-label span {
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.7rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.home-shell .destination-label strong,
-.home-shell .destination-label em {
-  color: white;
-}
-
-.home-shell .destination-label em {
-  font-size: 0.78rem;
-  font-style: normal;
-  font-weight: 800;
-}
-
 .home-shell .map-caption {
   display: none;
 }
@@ -1519,14 +1563,14 @@ button {
 }
 
 .map-legend {
-  top: 82px;
-  left: 24px;
+  top: 76px;
+  left: 18px;
   display: grid;
   gap: 9px;
-  min-width: 160px;
-  padding: 16px;
+  min-width: 146px;
+  padding: 13px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   color: #475569;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.1);
@@ -1573,18 +1617,27 @@ button {
 }
 
 .route-instructions {
-  top: 50%;
-  right: 28px;
-  width: min(320px, 28vw);
+  top: 118px;
+  right: 20px;
+  width: min(300px, 25vw);
   display: grid;
   gap: 10px;
-  padding: 16px 18px 18px;
+  max-height: calc(100% - 240px);
+  overflow: auto;
+  padding: 14px 14px 16px;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 16px;
+  border-radius: 14px;
   color: #1e293b;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.14);
-  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.13);
+  backdrop-filter: blur(16px);
+}
+
+.instruction-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .instruction-heading {
@@ -1598,9 +1651,26 @@ button {
   text-transform: uppercase;
 }
 
+.instruction-close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.instruction-close:hover {
+  color: #0f172a;
+  background: white;
+}
+
 .route-instructions > strong {
   color: #0f172a;
-  font-size: 1rem;
+  font-size: 0.96rem;
   line-height: 1.15;
 }
 
@@ -1614,19 +1684,44 @@ button {
 .route-instructions li {
   padding-left: 2px;
   color: #334155;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   font-weight: 750;
   line-height: 1.32;
 }
 
+.directions-toggle {
+  position: absolute;
+  z-index: 9;
+  top: 118px;
+  right: 20px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  color: #0f766e;
+  background: rgba(255, 255, 255, 0.94);
+  font-size: 0.8rem;
+  font-weight: 900;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.directions-toggle:hover {
+  border-color: #99f6e4;
+  background: white;
+}
+
 .floor-switcher {
-  left: 28px;
-  bottom: 24px;
+  left: 20px;
+  bottom: 18px;
   display: grid;
   gap: 7px;
   padding: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: white;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
 }
@@ -1648,13 +1743,13 @@ button {
 }
 
 .floor-switcher button {
-  width: 58px;
-  height: 42px;
+  width: 50px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border-radius: 12px;
+  border-radius: 11px;
   font-weight: 900;
 }
 
@@ -1666,35 +1761,35 @@ button {
 }
 
 .map-zoom-controls {
-  right: 28px;
-  bottom: 24px;
+  right: 20px;
+  bottom: 18px;
   display: grid;
   gap: 8px;
   padding: 8px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: white;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
 }
 
 .map-zoom-controls button {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 11px;
 }
 
 .route-summary {
   left: 50%;
-  bottom: 22px;
+  bottom: 16px;
   display: flex;
   align-items: center;
   gap: 16px;
-  width: min(560px, calc(100% - 220px));
-  padding: 13px 22px;
+  width: min(520px, calc(100% - 190px));
+  padding: 11px 18px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
   transform: translateX(-50%);
@@ -1733,7 +1828,7 @@ button {
 .route-metric strong {
   grid-column: 2;
   color: #1e293b;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .route-metric.destination {
@@ -1742,7 +1837,7 @@ button {
 
 @media (max-width: 1180px) {
   .home-shell {
-    grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(255px, 290px) minmax(0, 1fr);
     padding: 0;
   }
 
@@ -1757,12 +1852,16 @@ button {
   }
 
   .route-summary {
-    width: min(440px, calc(100% - 280px));
+    width: min(420px, calc(100% - 240px));
   }
 
   .route-instructions {
     right: 20px;
-    width: min(280px, 32vw);
+    width: min(270px, 30vw);
+  }
+
+  .directions-toggle {
+    right: 20px;
   }
 }
 
@@ -1821,6 +1920,11 @@ button {
     overflow: auto;
     padding: 12px 14px;
     transform: none;
+  }
+
+  .directions-toggle {
+    top: 104px;
+    right: 14px;
   }
 
   .route-instructions ol {
@@ -1886,12 +1990,11 @@ button {
     bottom: 292px;
   }
 
-  .home-shell .model-label {
-    top: 22px;
-    right: 22px;
+  .route-instructions {
+    top: 112px;
   }
 
-  .route-instructions {
+  .directions-toggle {
     top: 112px;
   }
 

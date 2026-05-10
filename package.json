@@ -1,5 +1,5 @@
 {
-  "name": "municimap-frontend",
+  "name": "olongapo-city-hall-navigator",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -19,5 +19,18 @@
     "@vitejs/plugin-react": "^4.3.4",
     "playwright": "^1.59.1",
     "vite": "^6.0.5"
-  }
+  },
+  "description": "Front-end version for the Olongapo City Hall 3D map and office pathfinding system.",
+  "main": "vite.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LESTTERR/frontend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LESTTERR/frontend/issues"
+  },
+  "homepage": "https://github.com/LESTTERR/frontend#readme"
 }

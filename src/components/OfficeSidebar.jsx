@@ -26,7 +26,7 @@ export default function OfficeSidebar({
           </span>
           <div>
             <p>City Hall</p>
-            <strong>MuniciMap</strong>
+            <strong>Navigator</strong>
           </div>
         </div>
       </div>

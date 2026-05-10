@@ -29,7 +29,7 @@ const emergencyHotlines = [
   },
 ];
 
-export default function LandingScreen({ municipalName, onStart }) {
+export default function LandingScreen({ cityName, onStart }) {
   function stopLandingClick(event) {
     event.stopPropagation();
   }
@@ -38,10 +38,20 @@ export default function LandingScreen({ municipalName, onStart }) {
     <main
       className="landing"
       onClick={onStart}
-      aria-label="Enter MuniciMap"
+      aria-label="Enter City Hall Navigator"
     >
       <div className="landing-backdrop" aria-hidden="true">
         <div className="landing-grid" />
+        <div className="landing-building-scene">
+          <div className="landing-floor-plate plate-one" />
+          <div className="landing-floor-plate plate-two" />
+          <div className="landing-floor-plate plate-three" />
+          <div className="landing-route-beam beam-one" />
+          <div className="landing-route-beam beam-two" />
+          <div className="landing-route-beam beam-three" />
+          <div className="landing-scene-pin pin-entry" />
+          <div className="landing-scene-pin pin-office" />
+        </div>
         <div className="landing-map-line line-one" />
         <div className="landing-map-line line-two" />
         <div className="landing-node node-one" />
@@ -57,7 +67,7 @@ export default function LandingScreen({ municipalName, onStart }) {
 
         <div className="landing-title-block">
           <h2>City Hall Navigator</h2>
-          <p>{municipalName}</p>
+          <p>{cityName} Hall office finder and 3D route guide</p>
         </div>
 
         <button

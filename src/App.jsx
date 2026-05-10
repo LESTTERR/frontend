@@ -10,6 +10,7 @@ import {
   Navigation,
   Plus,
   Route,
+  X,
 } from "lucide-react";
 import Header from "./components/Header.jsx";
 import LandingScreen from "./components/LandingScreen.jsx";
@@ -17,7 +18,7 @@ import OfficeSidebar from "./components/OfficeSidebar.jsx";
 import MapPreview from "./components/MapPreview.jsx";
 import { offices } from "./data/offices.js";
 
-const MUNICIPAL_NAME = "Olongapo City";
+const CITY_NAME = "Olongapo City";
 const START_FLOOR = "1st Floor";
 const DEFAULT_SELECTED_OFFICE_ID = "main-lobby";
 const floorOptions = [
@@ -64,7 +65,7 @@ function getVisitorDirections(office) {
 
   return [
     "Start at the main entrance on the 1st Floor.",
-    "Follow the orange route to the rear hallway stair or elevator.",
+    "Follow the orange route through the main hallway to the stair or elevator.",
     `Use the main stairs or elevator to reach the ${office.floor}.`,
     `Press floor ${office.floor.charAt(0)} to view the final hallway segment toward the ${side} of the ${hallway}.`,
     `Stop at ${office.room}.`,
@@ -83,6 +84,7 @@ export default function App() {
       offices[0].id,
   );
   const [activeFloor, setActiveFloor] = useState(START_FLOOR);
+  const [showDirections, setShowDirections] = useState(true);
   const [mapCommand, setMapCommand] = useState(null);
 
   const sendMapCommand = (type, payload = {}) => {
@@ -135,6 +137,7 @@ export default function App() {
     if (office) {
       setActiveFloor(getRouteDisplayFloor(office));
     }
+    setShowDirections(true);
     sendMapCommand("enter-route");
   };
 
@@ -150,6 +153,7 @@ export default function App() {
 
   const handleEnterRoute = () => {
     setActiveFloor(getRouteDisplayFloor(selectedOffice));
+    setShowDirections(true);
     sendMapCommand("enter-route");
   };
 
@@ -157,14 +161,14 @@ export default function App() {
     <div className={`app ${hasStarted ? "app-home" : ""}`}>
       {!hasStarted ? (
         <>
-          <Header municipalName={MUNICIPAL_NAME} />
+          <Header cityName={CITY_NAME} />
           <LandingScreen
-            municipalName={MUNICIPAL_NAME}
+            cityName={CITY_NAME}
             onStart={() => setHasStarted(true)}
           />
         </>
       ) : (
-        <main className="workspace home-shell" aria-label="Municipal office map">
+        <main className="workspace home-shell" aria-label="City hall office map">
           <OfficeSidebar
             offices={filteredOffices}
             selectedOffice={selectedOffice}
@@ -229,18 +233,40 @@ export default function App() {
               </div>
             </aside>
 
-            <aside className="route-instructions" aria-label="Visitor directions">
-              <div className="instruction-heading">
+            {showDirections ? (
+              <aside className="route-instructions" aria-label="Visitor directions">
+                <div className="instruction-header-row">
+                  <div className="instruction-heading">
+                    <Footprints size={18} aria-hidden="true" />
+                    <span>Visitor directions</span>
+                  </div>
+                  <button
+                    className="instruction-close"
+                    type="button"
+                    onClick={() => setShowDirections(false)}
+                    aria-label="Hide visitor directions"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <strong>{selectedOffice.name}</strong>
+                <ol>
+                  {visitorDirections.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </aside>
+            ) : (
+              <button
+                className="directions-toggle"
+                type="button"
+                onClick={() => setShowDirections(true)}
+                aria-label="Show visitor directions"
+              >
                 <Footprints size={18} aria-hidden="true" />
-                <span>Visitor directions</span>
-              </div>
-              <strong>{selectedOffice.name}</strong>
-              <ol>
-                {visitorDirections.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            </aside>
+                Directions
+              </button>
+            )}
 
             <div className="floor-switcher" aria-label="Floor selector">
               <span>Floor</span>
