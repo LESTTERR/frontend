@@ -1,6 +1,12 @@
 import ThreeMapViewer from "./ThreeMapViewer.jsx";
 
-export default function MapPreview({ offices, selectedOfficeId, mapCommand }) {
+export default function MapPreview({
+  offices,
+  selectedOfficeId,
+  mapCommand,
+  onSelectOffice,
+  onRouteFloorChange,
+}) {
   const selectedOffice = offices.find((office) => office.id === selectedOfficeId);
 
   return (
@@ -9,6 +15,8 @@ export default function MapPreview({ offices, selectedOfficeId, mapCommand }) {
         <ThreeMapViewer
           selectedOffice={selectedOffice}
           viewCommand={mapCommand}
+          onSelectOffice={onSelectOffice}
+          onRouteFloorChange={onRouteFloorChange}
         />
       </div>
 

@@ -5,6 +5,7 @@ import {
   Layers,
   MapPinned,
   Navigation,
+  PanelLeftClose,
   Search,
   X,
 } from "lucide-react";
@@ -16,18 +17,30 @@ export default function OfficeSidebar({
   searchTerm,
   onSearchChange,
   onSelectOffice,
+  onHideSidebar,
 }) {
   return (
     <aside className="sidebar" aria-label="Office search">
       <div className="sidebar-brand-panel">
         <div className="sidebar-brand-row">
-          <span className="sidebar-brand-icon" aria-hidden="true">
-            <MapPinned size={22} />
-          </span>
-          <div>
-            <p>City Hall</p>
-            <strong>Navigator</strong>
+          <div className="sidebar-brand-lockup">
+            <span className="sidebar-brand-icon" aria-hidden="true">
+              <MapPinned size={22} />
+            </span>
+            <div>
+              <p>City Hall</p>
+              <strong>Navigator</strong>
+            </div>
           </div>
+          <button
+            className="sidebar-hide-button"
+            type="button"
+            onClick={onHideSidebar}
+            aria-label="Hide office search sidebar"
+            title="Hide sidebar"
+          >
+            <PanelLeftClose size={18} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
