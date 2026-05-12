@@ -1,15 +1,18 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Compass,
   DoorOpen,
   Footprints,
+  House,
   Layers,
   MapPinned,
   Maximize2,
   Minus,
   Navigation,
+  PanelLeftOpen,
   Plus,
   Route,
+  TimerReset,
   X,
 } from "lucide-react";
 import Header from "./components/Header.jsx";
@@ -20,7 +23,9 @@ import { offices } from "./data/offices.js";
 
 const CITY_NAME = "Olongapo City";
 const START_FLOOR = "1st Floor";
-const DEFAULT_SELECTED_OFFICE_ID = "main-lobby";
+const DEFAULT_SELECTED_OFFICE_ID = "city-health";
+const IDLE_WARNING_MS = 30_000;
+const IDLE_RETURN_MS = 10_000;
 const floorOptions = [
   { label: "1", floor: "1st Floor" },
   { label: "2", floor: "2nd Floor" },
@@ -54,19 +59,25 @@ function getHallwayDepth(mapPosition = {}) {
 function getVisitorDirections(office) {
   const side = getHallwaySide(office.mapPosition);
   const hallway = getHallwayDepth(office.mapPosition);
+  const verticalAccess =
+    office.floor === "2nd Floor"
+      ? "main stairs"
+      : office.floor === "3rd Floor"
+        ? "elevator"
+        : null;
 
   if (office.floor === "1st Floor") {
     return [
-      "Start at the main entrance on the 1st Floor.",
+      "Start at the 1st Floor lobby marker.",
       `Follow the orange route toward the ${side} of the ${hallway}.`,
       `Stop at ${office.room}.`,
     ];
   }
 
   return [
-    "Start at the main entrance on the 1st Floor.",
-    "Follow the orange route through the main hallway to the stair or elevator.",
-    `Use the main stairs or elevator to reach the ${office.floor}.`,
+    "Start at the 1st Floor lobby marker.",
+    `Follow the orange route through the main hallway to the ${verticalAccess}.`,
+    `Use the ${verticalAccess} to reach the ${office.floor}.`,
     `Press floor ${office.floor.charAt(0)} to view the final hallway segment toward the ${side} of the ${hallway}.`,
     `Stop at ${office.room}.`,
   ];
@@ -85,7 +96,11 @@ export default function App() {
   );
   const [activeFloor, setActiveFloor] = useState(START_FLOOR);
   const [showDirections, setShowDirections] = useState(true);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [mapCommand, setMapCommand] = useState(null);
+  const [isIdleWarningVisible, setIsIdleWarningVisible] = useState(false);
+  const idleWarningTimerRef = useRef(null);
+  const idleReturnTimerRef = useRef(null);
 
   const sendMapCommand = (type, payload = {}) => {
     setMapCommand((currentCommand) => ({
@@ -94,6 +109,63 @@ export default function App() {
       sequence: (currentCommand?.sequence ?? 0) + 1,
     }));
   };
+
+  const clearIdleTimers = useCallback(() => {
+    window.clearTimeout(idleWarningTimerRef.current);
+    window.clearTimeout(idleReturnTimerRef.current);
+    idleWarningTimerRef.current = null;
+    idleReturnTimerRef.current = null;
+  }, []);
+
+  const handleReturnToLanding = useCallback(() => {
+    clearIdleTimers();
+    setHasStarted(false);
+    setIsIdleWarningVisible(false);
+    setSearchTerm("");
+    setActiveFloor(START_FLOOR);
+    setShowDirections(true);
+    setIsSidebarVisible(true);
+    setMapCommand(null);
+  }, [clearIdleTimers]);
+
+  const restartIdleTimers = useCallback(() => {
+    clearIdleTimers();
+
+    if (!hasStarted) {
+      return;
+    }
+
+    setIsIdleWarningVisible(false);
+    idleWarningTimerRef.current = window.setTimeout(() => {
+      setIsIdleWarningVisible(true);
+      idleReturnTimerRef.current = window.setTimeout(
+        handleReturnToLanding,
+        IDLE_RETURN_MS,
+      );
+    }, IDLE_WARNING_MS);
+  }, [clearIdleTimers, handleReturnToLanding, hasStarted]);
+
+  useEffect(() => {
+    if (!hasStarted) {
+      clearIdleTimers();
+      setIsIdleWarningVisible(false);
+      return undefined;
+    }
+
+    const activityEvents = ["pointerdown", "keydown", "touchstart"];
+
+    restartIdleTimers();
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, restartIdleTimers, { passive: true });
+    });
+
+    return () => {
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, restartIdleTimers);
+      });
+      clearIdleTimers();
+    };
+  }, [clearIdleTimers, hasStarted, restartIdleTimers]);
 
   const filteredOffices = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -122,23 +194,34 @@ export default function App() {
   const visitorDirections = getVisitorDirections(selectedOffice);
 
   const getRouteText = (office) => {
-    const needsStairs = office.floor !== "1st Floor";
-    const verticalStep = needsStairs
-      ? `Stairs or elevator to ${office.floor}`
-      : "Main corridor";
+    const verticalStep =
+      office.floor === "2nd Floor"
+        ? `Main stairs to ${office.floor}`
+        : office.floor === "3rd Floor"
+          ? `Elevator to ${office.floor}`
+          : "Main corridor";
 
-    return `Main entrance (${START_FLOOR}) -> ${verticalStep} -> ${office.room}`;
+    return `1st Floor lobby -> ${verticalStep} -> ${office.room}`;
   };
 
-  const handleSelectOffice = (officeId) => {
+  const handleSelectOffice = (officeId, options = {}) => {
     const office = offices.find((item) => item.id === officeId);
+    const routeDisplayFloor =
+      options.focusDestinationFloor && office
+        ? office.floor
+        : office
+          ? getRouteDisplayFloor(office)
+          : START_FLOOR;
 
     setSelectedOfficeId(officeId);
     if (office) {
-      setActiveFloor(getRouteDisplayFloor(office));
+      setActiveFloor(routeDisplayFloor);
     }
     setShowDirections(true);
-    sendMapCommand("enter-route");
+    sendMapCommand("enter-route", {
+      floor: routeDisplayFloor,
+      autoFloors: !options.focusDestinationFloor,
+    });
   };
 
   const handleSelectFloor = (floor) => {
@@ -154,7 +237,11 @@ export default function App() {
   const handleEnterRoute = () => {
     setActiveFloor(getRouteDisplayFloor(selectedOffice));
     setShowDirections(true);
-    sendMapCommand("enter-route");
+    sendMapCommand("enter-route", { autoFloors: true });
+  };
+
+  const handleRouteFloorChange = (floor) => {
+    setActiveFloor(floor);
   };
 
   return (
@@ -168,19 +255,37 @@ export default function App() {
           />
         </>
       ) : (
-        <main className="workspace home-shell" aria-label="City hall office map">
-          <OfficeSidebar
-            offices={filteredOffices}
-            selectedOffice={selectedOffice}
-            selectedOfficeId={selectedOffice.id}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            onSelectOffice={handleSelectOffice}
-          />
+        <main
+          className={`workspace home-shell ${
+            isSidebarVisible ? "" : "sidebar-hidden"
+          }`}
+          aria-label="City hall office map"
+        >
+          {isSidebarVisible ? (
+            <OfficeSidebar
+              offices={filteredOffices}
+              selectedOffice={selectedOffice}
+              selectedOfficeId={selectedOffice.id}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onSelectOffice={handleSelectOffice}
+              onHideSidebar={() => setIsSidebarVisible(false)}
+            />
+          ) : null}
 
           <section className="map-area">
             <div className="map-toolbar" aria-label="Map actions">
               <div className="map-chip-group" aria-label="Map status">
+                {!isSidebarVisible ? (
+                  <button
+                    className="tool-button sidebar-show-button"
+                    type="button"
+                    onClick={() => setIsSidebarVisible(true)}
+                  >
+                    <PanelLeftOpen size={18} aria-hidden="true" />
+                    Offices
+                  </button>
+                ) : null}
                 <span className="map-chip">
                   <Layers size={16} aria-hidden="true" />
                   {activeFloor}
@@ -192,6 +297,14 @@ export default function App() {
               </div>
 
               <div className="map-action-group">
+                <button
+                  className="tool-button"
+                  type="button"
+                  onClick={handleReturnToLanding}
+                >
+                  <House size={18} aria-hidden="true" />
+                  Landing
+                </button>
                 <button
                   className="tool-button"
                   type="button"
@@ -215,13 +328,23 @@ export default function App() {
               offices={offices}
               selectedOfficeId={selectedOffice.id}
               mapCommand={mapCommand}
+              onSelectOffice={handleSelectOffice}
+              onRouteFloorChange={handleRouteFloorChange}
             />
 
             <aside className="map-legend" aria-label="Map legend">
               <p>Legend</p>
               <div>
-                <span className="legend-swatch mayor" />
-                Sky-blue floors
+                <span className="legend-swatch floor-one" />
+                First floor
+              </div>
+              <div>
+                <span className="legend-swatch floor-two" />
+                Second floor
+              </div>
+              <div>
+                <span className="legend-swatch floor-three" />
+                Third floor
               </div>
               <div>
                 <span className="legend-swatch office" />
@@ -328,6 +451,26 @@ export default function App() {
           </section>
         </main>
       )}
+      {hasStarted && isIdleWarningVisible ? (
+        <div
+          className="idle-warning"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Still using the city hall navigator"
+          onPointerDown={restartIdleTimers}
+        >
+          <div className="idle-warning-panel">
+            <span className="idle-warning-icon" aria-hidden="true">
+              <TimerReset size={34} />
+            </span>
+            <strong>Are you still there?</strong>
+            <p>Touch anywhere to continue. Returning to the landing page in 10 seconds.</p>
+            <button type="button" onClick={restartIdleTimers}>
+              Continue
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

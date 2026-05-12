@@ -38,12 +38,10 @@ frontend/
     services/
       firebase.js
   public/
-    newmodel/
-      OCH GF only (2).glb
-      OCH 2F only (1).glb
-      OCH 3F only (1).glb
-      OCH AF NAVMESH (1).glb
-      OCH FC NAVMESH.glb
+    model2/
+      OCH GFWL.glb
+      OCH 2FWL.glb
+      OCH 3FWL.glb
 ```
 
 ## How to run
@@ -70,14 +68,14 @@ http://localhost:5173
 
 - Change the city name in `src/App.jsx`.
 - Add or update offices in `src/data/offices.js`.
-- The active 3D model set is loaded from `public/newmodel/`.
+- The active 3D model set is loaded from `public/model2/`.
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
-- The viewer currently uses separate floor visuals for clean floor focus: `OCH GF only (2).glb`, `OCH 2F only (1).glb`, and `OCH 3F only (1).glb`.
-- It also loads `OCH AF NAVMESH (1).glb` for per-floor navmesh data and `OCH FC NAVMESH.glb` for the all-floor connector navmesh.
+- The viewer currently uses separate floor visuals for clean floor focus: `OCH GFWL.glb`, `OCH 2FWL.glb`, and `OCH 3FWL.glb`.
+- The viewer now loads only the three floor GLBs in `public/model2/`.
 - Combined files such as `OCH FC.glb` and per-floor combined files are kept as export references, but are not loaded by default because they would duplicate geometry or reduce floor-by-floor control.
 - If you export newer Blender models, keep the same role-based split or update the `DEFAULT_MODEL_PATHS` list in `src/components/ThreeMapViewer.jsx`.
 - Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and hide navmesh objects named `Navmesh`, `1F_Navmesh`, `2F_Navmesh`, or `3F_Navmesh`.
-- The current `newmodel` GLBs contain floor meshes and navmesh meshes, but not individual office marker objects. Office destinations use the `routeNode` and `mapPosition` anchors in `src/data/offices.js`, with generated corridor, stair, and elevator connection points for all floors.
+- The current `model2` GLBs include floor meshes, navmesh meshes, and office-name marker meshes. Clickable office markers are mapped in `src/components/ThreeMapViewer.jsx`, while `src/data/offices.js` still provides office metadata and route node names.
 - Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
 
 ## GitHub group collaboration guide

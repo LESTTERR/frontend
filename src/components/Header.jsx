@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, Landmark } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 import useClock from "../hooks/useClock.js";
 
 export default function Header({ cityName }) {
@@ -8,11 +8,11 @@ export default function Header({ cityName }) {
     <header className="topbar">
       <div className="brand">
         <span className="brand-mark" aria-hidden="true">
-          <Landmark size={22} />
+          <img src="/pic/GAPO%20SEAL%20copy.png" alt="" />
         </span>
         <div>
-          <p className="brand-label">City Hall Navigator</p>
-          <h1>{cityName}</h1>
+          <p className="brand-label">{cityName}</p>
+          <h1>City Hall Navigator</h1>
         </div>
       </div>
 
