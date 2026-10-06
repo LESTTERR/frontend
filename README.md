@@ -1,6 +1,9 @@
 # Olongapo City Hall Navigator Frontend
 
-This is the first front-end version for the Olongapo City Hall 3D map and office pathfinding system.
+This is the React/Vite frontend for the Olongapo City Hall 3D indoor wayfinding and office pathfinding system.
+
+For GitHub/Vercel setup, outstanding deployment risks, and a pre-launch checklist, see
+[DEPLOYMENT-CHECKLIST.md](./DEPLOYMENT-CHECKLIST.md).
 
 ## What is inside
 
@@ -8,10 +11,10 @@ This is the first front-end version for the Olongapo City Hall 3D map and office
 - Landing screen with "touch anywhere to proceed"
 - Header with city hall name, live time, and live date
 - Office finder sidebar with search
-- Main map area ready for a future Blender/Three.js model
-- Olongapo City Hall `.glb` model loaded with Three.js
-- Simple office data file
-- Firebase setup file for later Firestore data
+- Lazy-loaded Three.js building viewer and floor controls
+- Office search and manually configured, waypoint-graph routes
+- Browser-local admin tools for organization, floors, offices, pins, and paths
+- Browser-local settings in localStorage and uploaded GLB/logo files in IndexedDB (one browser per deployed municipality; no Firebase required)
 
 ## File structure
 
@@ -20,28 +23,29 @@ frontend/
   index.html
   package.json
   vite.config.js
-  .env.example
   src/
     App.jsx
+    AdminApp.jsx
     main.jsx
     styles.css
     components/
       Header.jsx
       LandingScreen.jsx
       MapPreview.jsx
-      OfficeDetails.jsx
       OfficeSidebar.jsx
+      admin/
     data/
+      navigatorDefaults.js
       offices.js
     hooks/
-      useClock.js
     services/
-      firebase.js
+      modelGroups.js
+      navigatorConfig.js
+      pathfinding.js
   public/
+    TEST.glb
     model2/
-      OCH GFWL.glb
-      OCH 2FWL.glb
-      OCH 3FWL.glb
+    pic/
 ```
 
 ## How to run
@@ -66,17 +70,25 @@ http://localhost:5173
 
 ## Where to edit
 
-- Change the city name in `src/App.jsx`.
+- Manage organization identity and contact information in the admin **Settings** section.
 - Add or update offices in `src/data/offices.js`.
-- The active 3D model set is loaded from `public/model2/`.
+- Upload one complete binary GLB in **Settings**; floor-specific files are no longer required.
+- Assign detected GLB hierarchy groups to floors in the admin **Floors** section.
 - The Three.js viewer code is in `src/components/ThreeMapViewer.jsx`.
-- The viewer currently uses separate floor visuals for clean floor focus: `OCH GFWL.glb`, `OCH 2FWL.glb`, and `OCH 3FWL.glb`.
-- The viewer now loads only the three floor GLBs in `public/model2/`.
-- Combined files such as `OCH FC.glb` and per-floor combined files are kept as export references, but are not loaded by default because they would duplicate geometry or reduce floor-by-floor control.
-- If you export newer Blender models, keep the same role-based split or update the `DEFAULT_MODEL_PATHS` list in `src/components/ThreeMapViewer.jsx`.
-- Pathfinding can read `Marker_*` route points and `Path_*_to_*` links, build routes from `*_DOOR_MARK`, `*_HALL`, and `*_WALK` objects, and hide navmesh objects named `Navmesh`, `1F_Navmesh`, `2F_Navmesh`, or `3F_Navmesh`.
-- The current `model2` GLBs include floor meshes, navmesh meshes, and office-name marker meshes. Clickable office markers are mapped in `src/components/ThreeMapViewer.jsx`, while `src/data/offices.js` still provides office metadata and route node names.
-- Add Firebase keys by copying `.env.example` to `.env` and filling in your Firebase project values.
+- Floor configuration stores a stable floor ID, display order, enabled state, description, and optional model-group name. Existing label-based office and route data is normalized to floor IDs when loaded.
+- Organization logos accept PNG, JPG, and WebP files only; SVG uploads are intentionally rejected.
+- The deployment uses no Firebase environment variables. Each municipality should have its own Vercel project and a dedicated kiosk/browser for its local settings.
+
+## Configuring safe indoor routes
+
+Routes use an explicit waypoint graph. The default `entrance-kiosk` start has no surveyed position and there are no default edges, so an office is intentionally reported as unavailable until its route is configured. The viewer does not guess a straight-line route.
+
+1. In **Map Pins**, select a floor, edit **Entrance Kiosk**, then click its actual position on the model. Use **Add Pin** for office entrances, corridor points, and each stair/elevator landing. Link office pins to their office records.
+2. In **Paths**, choose **Create Route**, select the kiosk and linked office entrance, then click points along each walkable corridor. For a floor transition, add a stair pin on the departure floor, select the adjacent floor and add a matching stair pin; elevators may connect their configured floors directly.
+3. Select **Finish at office** to validate the complete chain, then **Save Route**. Incomplete drafts are discarded with **Cancel**. Saved route edges stay explicit; clicking an office does not create a shortcut.
+4. Check graph validation messages and verify the route visually on each floor. The map playback animates along the stored 3D points and changes floors at configured transitions.
+
+Waypoint coordinates are stored in model-local units and the current admin config is saved in the browser's local storage. Uploaded GLB and logo binaries are stored in IndexedDB on that browser. This is a per-browser configuration, not an authoritative shared or secured backend; the client-side admin PIN is not access control. Do not use client-side waypoint data to enforce access control or other security decisions; publish/validate shared configuration through an authorized backend if multiple kiosks must use the same graph. Public GLB assets and browser-stored map data must be treated as public.
 
 ## GitHub group collaboration guide
 

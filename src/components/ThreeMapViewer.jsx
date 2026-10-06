@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { offices as cityHallOffices } from "../data/offices.js";
+import {
+  defaultFloors,
+  defaultModelPaths,
+  defaultOffices,
+} from "../data/navigatorDefaults.js";
+import { findWaypointRoute } from "../services/pathfinding.js";
 
-const DEFAULT_MODEL_PATHS = [
-  "/model2/OCH GFWL.glb",
-  "/model2/OCH 2FWL.glb",
-  "/model2/OCH 3FWL.glb",
-];
+const DEFAULT_MODEL_PATHS = defaultModelPaths;
 const DEFAULT_MAP_POSITION = { x: 50, y: 50 };
-const FLOOR_NUMBERS = [1, 2, 3];
+const FLOOR_NUMBERS = defaultFloors.map((floor) => floor.number);
 const START_FLOOR_NUMBER = 1;
 const FLOOR_MODEL_STYLES = {
   1: {
@@ -33,28 +34,7 @@ const DEFAULT_MODEL_STYLE = {
 const ROUTE_COLOR = 0xf97316;
 const ROUTE_EMISSIVE_COLOR = 0x7c2d12;
 const ROUTE_FLOOR_LIFT = 0.035;
-const ROUTE_ANIMATION_MS_PER_UNIT = 760;
-const ROUTE_ANIMATION_MIN_MS = 1800;
-const ROUTE_ANIMATION_MAX_MS = 6200;
-const MODEL_OFFICE_OBJECT_IDS = Object.fromEntries(
-  cityHallOffices.flatMap((office) =>
-    (office.modelObjects ?? []).map((modelObjectName) => [
-      modelObjectName.replace(/_+$/, "").toUpperCase(),
-      office.id,
-    ]),
-  ),
-);
-const OFFICES_BY_ID = new Map(
-  cityHallOffices.map((office) => [office.id, office]),
-);
-const MODEL_ROUTE_LANDMARK_IDS = {
-  LOBBY_F: "route-start",
-  MAIN_STAIRS: "stairs-1",
-  MAIN_STAIRS001: "stairs-2",
-  ELEVATOR: "elevator-1",
-  ELEVATOR001: "elevator-2",
-  ELEV: "elevator-3",
-};
+const ROUTE_SPEED_UNITS_PER_SECOND = 0.5;
 const NAVMESH_LINE_SAMPLE_DISTANCE = 0.11;
 const NAVMESH_CONNECT_DISTANCE = 0.7;
 const NAVMESH_BLOCK_RADIUS = 0.34;
@@ -63,6 +43,14 @@ const WALL_BLOCKER_MIN_HEIGHT = 0.06;
 const WALL_BLOCKER_MIN_LENGTH = 0.08;
 const WALL_BLOCKER_Y_TOLERANCE = 0.08;
 const WALL_INTERSECTION_TOLERANCE = 0.018;
+const MODEL_ROUTE_LANDMARK_IDS = {
+  LOBBY_F: "route-start",
+  MAIN_STAIRS: "stairs-1",
+  MAIN_STAIRS001: "stairs-2",
+  ELEVATOR: "elevator-1",
+  ELEVATOR001: "elevator-2",
+  ELEV: "elevator-3",
+};
 
 function clampPercent(value) {
   const numberValue = Number(value);
@@ -211,30 +199,26 @@ function getFloorRatio(floor = "") {
   return 0.5;
 }
 
-function getFloorNumber(floor = "") {
-  const normalizedFloor = floor.toLowerCase();
-
-  if (normalizedFloor.includes("3")) {
-    return 3;
+function getFloorNumber(floor = "", floors = [], floorId = "") {
+  const configuredFloor =
+    floors.find((entry) => entry.id === floorId) ||
+    floors.find((entry) => entry.id === floor) ||
+    floors.find((entry) => entry.label === floor) ||
+    floors.find((entry) => String(entry.number) === String(floor));
+  if (configuredFloor) {
+    return Number(configuredFloor.order ?? configuredFloor.number);
   }
 
-  if (normalizedFloor.includes("2")) {
-    return 2;
-  }
-
-  return 1;
+  const match = String(floor ?? "").match(/\d+/);
+  return match ? Number(match[0]) : START_FLOOR_NUMBER;
 }
 
-function getFloorLabel(floorNumber) {
-  if (floorNumber === 3) {
-    return "3rd Floor";
-  }
-
-  if (floorNumber === 2) {
-    return "2nd Floor";
-  }
-
-  return "1st Floor";
+function getFloorLabel(floorNumber, floors = []) {
+  return (
+    floors.find(
+      (floor) => Number(floor.order ?? floor.number) === floorNumber,
+    )?.label || `${floorNumber} Floor`
+  );
 }
 
 function getOfficeFocusPosition(office, bounds) {
@@ -310,14 +294,20 @@ function getMarkerRoutePosition(markerPosition, floorNumber, bounds, floorMetada
   );
 }
 
-function getOfficeMarkerRoutePosition(office, markerPosition, bounds, floorMetadata) {
+function getOfficeMarkerRoutePosition(
+  office,
+  markerPosition,
+  bounds,
+  floorMetadata,
+  floorNumber = getFloorNumber(office?.floor),
+) {
   if (!office || !markerPosition || !bounds) {
     return null;
   }
 
   return getMarkerRoutePosition(
     markerPosition,
-    getFloorNumber(office.floor),
+    floorNumber,
     bounds,
     floorMetadata,
   );
@@ -368,9 +358,20 @@ function getModelOfficeKey(name) {
   return normalizeObjectName(name).replace(/_+$/, "").toUpperCase();
 }
 
-function getModelOfficeId(objectOrName) {
+function buildModelOfficeObjectIds(offices = []) {
+  return Object.fromEntries(
+    offices.flatMap((office) =>
+      (office.modelObjects ?? []).map((modelObjectName) => [
+        getModelOfficeKey(modelObjectName),
+        office.id,
+      ]),
+    ),
+  );
+}
+
+function getModelOfficeId(objectOrName, modelOfficeObjectIds) {
   for (const name of getObjectSearchNames(objectOrName)) {
-    const officeId = MODEL_OFFICE_OBJECT_IDS[getModelOfficeKey(name)];
+    const officeId = modelOfficeObjectIds[getModelOfficeKey(name)];
 
     if (officeId) {
       return officeId;
@@ -408,7 +409,7 @@ function getVerticalAccessType(objectOrName) {
   return null;
 }
 
-function getClickableOfficeId(object) {
+function getClickableOfficeId(object, modelOfficeObjectIds) {
   let currentObject = object;
 
   while (currentObject) {
@@ -416,7 +417,7 @@ function getClickableOfficeId(object) {
       return currentObject.userData.officeId;
     }
 
-    const officeId = getModelOfficeId(currentObject);
+    const officeId = getModelOfficeId(currentObject, modelOfficeObjectIds);
 
     if (officeId) {
       return officeId;
@@ -1422,11 +1423,15 @@ function getModelFloorNumber(objectOrName) {
   if (
     names.some((name) =>
       name.startsWith("1f") ||
+      name.startsWith("1_") ||
+      name.includes("1_floor") ||
+      name.includes("1f_") ||
       name.startsWith("gf") ||
       name.includes("_1f") ||
       name.includes("_gf") ||
       name.includes("gfwl") ||
-      name.includes("ground"),
+      name.includes("ground") ||
+      name.includes("1st"),
     )
   ) {
     return 1;
@@ -1436,8 +1441,11 @@ function getModelFloorNumber(objectOrName) {
     names.some((name) =>
       name.startsWith("2f") ||
       name.startsWith("2_") ||
+      name.includes("2_floor") ||
+      name.includes("2f_") ||
       name.includes("_2f") ||
-      name.includes("2fwl"),
+      name.includes("2fwl") ||
+      name.includes("2nd"),
     )
   ) {
     return 2;
@@ -1447,11 +1455,25 @@ function getModelFloorNumber(objectOrName) {
     names.some((name) =>
       name.startsWith("3f") ||
       name.startsWith("3_") ||
+      name.includes("3_floor") ||
+      name.includes("3f_") ||
       name.includes("_3f") ||
-      name.includes("3fwl"),
+      name.includes("3fwl") ||
+      name.includes("3rd"),
     )
   ) {
     return 3;
+  }
+
+  if (
+    names.some((name) =>
+      name.startsWith("roof") ||
+      name.includes("roof") ||
+      name.startsWith("4f") ||
+      name.startsWith("4_"),
+    )
+  ) {
+    return 4;
   }
 
   if (names.some((name) => name === "navmesh" || name === "cube005")) {
@@ -1465,23 +1487,33 @@ function isFloorShellObject(objectOrName) {
   return getObjectSearchNames(objectOrName).some((name) => {
     const normalizedName = normalizeObjectName(name).toLowerCase();
 
-    return normalizedName === "1f" || normalizedName === "2f" || normalizedName === "3f";
+    return (
+      normalizedName === "1f" ||
+      normalizedName === "2f" ||
+      normalizedName === "3f" ||
+      normalizedName.startsWith("1_floor") ||
+      normalizedName.startsWith("2_floor") ||
+      normalizedName.startsWith("3_floor")
+    );
   });
 }
 
 function isModelLabelObject(objectOrName) {
+  const name = typeof objectOrName === "string" ? objectOrName : objectOrName?.name;
+  if (!name) return false;
+  const lower = name.toLowerCase();
   return (
-    !isFloorShellObject(objectOrName) &&
-    !isNavmeshObject(objectOrName) &&
-    !getRoutePointName(typeof objectOrName === "string" ? objectOrName : objectOrName?.name) &&
-    !getRouteEdge(typeof objectOrName === "string" ? objectOrName : objectOrName?.name)
+    lower.includes("label") ||
+    lower.includes("text") ||
+    lower.includes("sign") ||
+    lower.includes("marker")
   );
 }
 
-function getFloorMetadata(root, bounds) {
+function getFloorMetadata(root, bounds, configuredFloorNumbers = []) {
   const floorMetadata = new Map();
 
-  for (const floorNumber of FLOOR_NUMBERS) {
+  for (const floorNumber of new Set([1, 2, 3, 4, ...configuredFloorNumbers])) {
     floorMetadata.set(floorNumber, {
       navmeshBounds: null,
       visualBounds: null,
@@ -1517,6 +1549,9 @@ function getFloorMetadata(root, bounds) {
     }
 
     floorData.visualBounds = mergeBounds(floorData.visualBounds, childBounds);
+    if (!floorData.navmeshBounds && floorData.visualBounds) {
+      floorData.routeY = floorData.visualBounds.min.y + 0.05;
+    }
   });
 
   return floorMetadata;
@@ -1560,7 +1595,7 @@ function normalizeModelPaths(modelPaths, modelPath) {
   const normalizedPaths = (Array.isArray(sourcePaths) ? sourcePaths : [sourcePaths])
     .filter(Boolean);
 
-  return normalizedPaths.length > 0 ? normalizedPaths : DEFAULT_MODEL_PATHS;
+  return normalizedPaths;
 }
 
 function getCameraOffset(bounds) {
@@ -1603,13 +1638,18 @@ function getFrontOverviewView(bounds, nodePositions) {
     center.clone().add(new THREE.Vector3(0, 0, size.z * 0.5));
   const frontDirection = getFrontDirection(bounds, nodePositions);
 
+  // Target: entrance-level slightly right, low-ish so camera looks down at building
   const target = center.clone();
-  target.y = bounds.min.y + size.y * 0.48;
+  target.x += size.x * 0.10;       // nudge right toward entrance
+  target.y = bounds.min.y + size.y * 0.30; // look at lower third (entrance area)
 
+  // Camera: close (0.30× of building), high up (1.2× full height above bottom)
+  // gives the elevated bird's-eye-from-front look
   const cameraPosition = entryPosition
     .clone()
-    .add(frontDirection.multiplyScalar(largestSide * 0.62));
-  cameraPosition.y = bounds.min.y + size.y * 0.56;
+    .add(frontDirection.multiplyScalar(largestSide * 0.30));
+  cameraPosition.x += size.x * 0.12;           // shift right
+  cameraPosition.y = bounds.min.y + size.y * 1.25; // well above the roof
 
   return { target, cameraPosition };
 }
@@ -1647,6 +1687,14 @@ function getFloorOverviewView(floorNumber, bounds, floorMetadata) {
   );
 
   return { target, cameraPosition };
+}
+
+function getRouteFollowOffset(floorNumber, bounds, floorMetadata) {
+  const floorBounds = getFloorModelBounds(floorNumber, floorMetadata, bounds);
+  const floorSize = floorBounds.getSize(new THREE.Vector3());
+  const floorLargest = Math.max(floorSize.x, floorSize.z, floorSize.y * 2.6) || 7;
+
+  return new THREE.Vector3(0, floorLargest * 0.62, floorLargest * 0.22);
 }
 
 function getRouteDistance(points) {
@@ -1901,25 +1949,26 @@ function styleBuildingMesh(child) {
     !child.isMesh ||
     isNavmeshObject(child) ||
     getRoutePointName(child.name) ||
-    getRouteEdge(child.name) ||
-    !isFloorShellObject(child)
+    getRouteEdge(child.name)
   ) {
     return;
   }
 
   const floorNumber = getModelFloorNumber(child);
 
-  if (!floorNumber) {
-    return;
+  if (floorNumber) {
+    child.userData.floorNumber = floorNumber;
   }
 
-  const modelStyle = FLOOR_MODEL_STYLES[floorNumber] ?? DEFAULT_MODEL_STYLE;
+  child.castShadow = true;
+  child.receiveShadow = true;
 
-  child.userData.floorNumber = floorNumber;
-  const originalGeometry = child.geometry;
-  child.geometry = createSurfaceClassifiedGeometry(originalGeometry, child);
-  originalGeometry.dispose();
-  child.material = createBuildingMaterials(modelStyle);
+  if (child.material) {
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((mat) => {
+      mat.side = THREE.DoubleSide;
+    });
+  }
 }
 
 function getRouteStartFloorNumber() {
@@ -1971,12 +2020,29 @@ function createRouteSegment(
 }
 
 export default function ThreeMapViewer({
+  offices = defaultOffices,
+  floors = defaultFloors,
   modelPath,
   modelPaths = DEFAULT_MODEL_PATHS,
+  pathNodes = [],
+  pathEdges = [],
+  startNodeId = "entrance-kiosk",
   selectedOffice,
   viewCommand,
   onSelectOffice,
   onRouteFloorChange,
+  onNavigationStatus,
+  waypointEditMode = false,
+  isDrawingRoute = false,
+  onRoutePointPlace,
+  editFloor,
+  isolatedFloorView = false,
+  selectedWaypointId = null,
+  isPlacingWaypoint = false,
+  onWaypointPlace,
+  onWaypointPositionChange,
+  showNavigationDebug = false,
+  showOfficeLabels = true,
 }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -1996,9 +2062,73 @@ export default function ThreeMapViewer({
   const routeGroupRef = useRef(null);
   const routeSequenceTimersRef = useRef([]);
   const routeSequenceRunRef = useRef(0);
+  const routeFollowOffsetRef = useRef(null);
+  const isRouteFollowingRef = useRef(false);
+  const waypointMarkerGroupRef = useRef(null);
+  const waypointMarkersRef = useRef(new Map());
+  const pathNodesRef = useRef(pathNodes);
+  const pathEdgesRef = useRef(pathEdges);
+  const startNodeIdRef = useRef(startNodeId);
+  const visibleFloorRef = useRef(null);
+  const floorsRef = useRef(floors);
+  floorsRef.current = floors;
+  const currentRouteFloorRef = useRef(null);
+  const waypointEditModeRef = useRef(waypointEditMode);
+  const selectedWaypointIdRef = useRef(selectedWaypointId);
+  const editFloorRef = useRef(editFloor);
+  const isolatedFloorViewRef = useRef(isolatedFloorView);
+  editFloorRef.current = editFloor;
+  isolatedFloorViewRef.current = isolatedFloorView;
+  const isPlacingWaypointRef = useRef(isPlacingWaypoint);
+  const isDrawingRouteRef = useRef(isDrawingRoute);
+  const onWaypointPlaceRef = useRef(onWaypointPlace);
+  const onRoutePointPlaceRef = useRef(onRoutePointPlace);
+  const onWaypointPositionChangeRef = useRef(onWaypointPositionChange);
+  const onNavigationStatusRef = useRef(onNavigationStatus);
   const onRouteFloorChangeRef = useRef(onRouteFloorChange);
   const onSelectOfficeRef = useRef(onSelectOffice);
   const selectedOfficeRef = useRef(selectedOffice);
+  const viewCommandRef = useRef(viewCommand);
+  viewCommandRef.current = viewCommand;
+  const nodeFloorsRef = useRef(new Map());
+  const officesById = useMemo(
+    () => new Map(offices.map((office) => [office.id, office])),
+    [offices],
+  );
+  const modelOfficeObjectIds = useMemo(
+    () => buildModelOfficeObjectIds(offices),
+    [offices],
+  );
+  const floorNumbers = useMemo(
+    () =>
+      [...new Set(
+        floors
+          .map((floor) => Number(floor.order ?? floor.number))
+          .filter((number) => Number.isFinite(number) && number > 0),
+      )]
+        .sort((first, second) => first - second),
+    [floors],
+  );
+  const officeSourceKey = useMemo(
+    () =>
+      JSON.stringify(
+        offices.map((office) => ({
+          id: office.id,
+          name: office.name,
+          floor: office.floor,
+          room: office.room,
+          mapPosition: office.mapPosition,
+          modelObjects: office.modelObjects,
+          routeNode: office.routeNode,
+          showLabel: office.showLabel,
+        })),
+      ),
+    [offices],
+  );
+  const pathSourceKey = useMemo(
+    () => JSON.stringify({ pathNodes, pathEdges, floors }),
+    [pathNodes, pathEdges, floors],
+  );
   const activeModelPaths = useMemo(
     () => normalizeModelPaths(modelPaths, modelPath),
     [modelPath, modelPaths],
@@ -2060,6 +2190,24 @@ export default function ThreeMapViewer({
     marker.visible = true;
   }
 
+  function applyConfiguredFloorGroups() {
+    const modelRoot = modelRootRef.current;
+    if (!modelRoot) return;
+
+    floorsRef.current.forEach((floor) => {
+      if (!floor.modelGroupName) return;
+      const group = modelRoot.getObjectByName(floor.modelGroupName);
+      if (!group) return;
+      group.traverse((child) => {
+        child.userData = {
+          ...child.userData,
+          floorNumber: Number(floor.order ?? floor.number),
+          floorId: floor.id,
+        };
+      });
+    });
+  }
+
   function setVisibleFloor(floorNumber = null) {
     const modelRoot = modelRootRef.current;
 
@@ -2067,6 +2215,7 @@ export default function ThreeMapViewer({
       return;
     }
 
+    visibleFloorRef.current = floorNumber;
     modelRoot.traverse((child) => {
       const childFloorNumber =
         child.userData?.floorNumber ?? getModelFloorNumber(child);
@@ -2080,11 +2229,46 @@ export default function ThreeMapViewer({
         return;
       }
 
-      if (!isRenderableObject(child) && !childFloorNumber) {
-        return;
+      if (child.isMesh) {
+        if (!floorNumber) {
+          // Overview: show EVERYTHING including the roof
+          child.visible = true;
+        } else {
+          // Cumulative: show floor 1 up to the selected floor, hide higher floors
+          // e.g. selecting floor 2 shows floor 1 + floor 2
+          // selecting floor 3 shows floor 1 + 2 + 3 (roof hidden)
+          if (!childFloorNumber) {
+            // Unclassified meshes always visible
+            child.visible = true;
+          } else if (waypointEditModeRef.current && isolatedFloorViewRef.current) {
+            child.visible = childFloorNumber === floorNumber;
+          } else {
+            child.visible = childFloorNumber <= floorNumber;
+          }
+        }
       }
+    });
 
-      child.visible = !floorNumber || childFloorNumber === floorNumber;
+    floorsRef.current.forEach((floor) => {
+      if (!floor.modelGroupName) return;
+      const group = modelRoot.getObjectByName(floor.modelGroupName);
+      if (!group) return;
+      group.visible =
+        (floor.enabled !== false ||
+          (waypointEditModeRef.current && isolatedFloorViewRef.current)) &&
+        (floorNumber === null ||
+        (waypointEditModeRef.current && isolatedFloorViewRef.current
+          ? Number(floor.order ?? floor.number) === floorNumber
+          : Number(floor.order ?? floor.number) <= floorNumber));
+    });
+
+    waypointMarkerGroupRef.current?.children.forEach((child) => {
+      if (!child.userData?.waypointId) return;
+      child.visible =
+        floorNumber === null ||
+        (waypointEditModeRef.current && isolatedFloorViewRef.current
+          ? child.userData.floorNumber === floorNumber
+          : (child.userData.floorNumber ?? START_FLOOR_NUMBER) <= floorNumber);
     });
 
     if (mountRef.current) {
@@ -2092,6 +2276,135 @@ export default function ThreeMapViewer({
         ? String(floorNumber)
         : "all";
     }
+  }
+
+  function disposeWaypointMarkers() {
+    const markerGroup = waypointMarkerGroupRef.current;
+
+    if (markerGroup) {
+      markerGroup.parent?.remove(markerGroup);
+      disposeObject(markerGroup);
+      waypointMarkerGroupRef.current = null;
+    }
+
+    waypointMarkersRef.current.clear();
+  }
+
+  function updateWaypointMarkers() {
+    const scene = sceneRef.current;
+    const modelRoot = modelRootRef.current;
+
+    disposeWaypointMarkers();
+    if (
+      !scene ||
+      !modelRoot ||
+      (!waypointEditModeRef.current && !showNavigationDebug)
+    ) {
+      return;
+    }
+
+    const group = new THREE.Group();
+    group.name = "navigation_waypoints";
+    const nodeMap = new Map(pathNodesRef.current.map((node) => [node.id, node]));
+    const markerMaterialCache = new Map();
+
+    function getMarkerMaterial(node) {
+      const isSelected = node.id === selectedWaypointIdRef.current;
+      const color =
+        node.type === "kiosk"
+          ? 0x16a34a
+          : node.type === "stairs" || node.type === "stair"
+            ? 0x2563eb
+            : node.type === "office"
+              ? 0xdc2626
+              : node.type === "elevator"
+                ? 0x9333ea
+                : 0xd97706;
+      const key = `${color}-${isSelected}`;
+
+      if (!markerMaterialCache.has(key)) {
+        markerMaterialCache.set(
+          key,
+          new THREE.MeshBasicMaterial({
+            color: isSelected ? 0xffffff : color,
+            depthTest: false,
+          }),
+        );
+      }
+
+      return markerMaterialCache.get(key);
+    }
+
+    pathNodesRef.current.forEach((node) => {
+      if (
+        !node.position ||
+        !["x", "y", "z"].every((axis) => Number.isFinite(node.position[axis]))
+      ) {
+        return;
+      }
+
+      const floorNumber =
+        getFloorNumber(node.floor, floorsRef.current, node.floorId) ??
+        START_FLOOR_NUMBER;
+      const isVisible =
+        visibleFloorRef.current === null ||
+        floorNumber <= visibleFloorRef.current;
+      const worldPosition = modelRoot.localToWorld(
+        new THREE.Vector3(node.position.x, node.position.y, node.position.z),
+      );
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(
+          node.id === selectedWaypointIdRef.current ? 0.1 : 0.075,
+          12,
+          10,
+        ),
+        getMarkerMaterial(node),
+      );
+      marker.position.copy(worldPosition);
+      marker.renderOrder = 100;
+      marker.visible = isVisible;
+      marker.userData = { waypointId: node.id, floorNumber };
+      group.add(marker);
+      waypointMarkersRef.current.set(node.id, marker);
+    });
+
+    if (showNavigationDebug) {
+      const edgePoints = [];
+      pathEdgesRef.current.forEach((edge) => {
+        const from = nodeMap.get(edge.from);
+        const to = nodeMap.get(edge.to);
+        if (!from?.position || !to?.position) return;
+
+        edgePoints.push(
+          modelRoot.localToWorld(
+            new THREE.Vector3(
+              from.position.x,
+              from.position.y,
+              from.position.z,
+            ),
+          ),
+          modelRoot.localToWorld(
+            new THREE.Vector3(to.position.x, to.position.y, to.position.z),
+          ),
+        );
+      });
+
+      if (edgePoints.length) {
+        const edgeGeometry = new THREE.BufferGeometry().setFromPoints(edgePoints);
+        const edgeMaterial = new THREE.LineBasicMaterial({
+          color: 0x0f766e,
+          transparent: true,
+          opacity: 0.9,
+          depthTest: false,
+        });
+        const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        edgeLines.renderOrder = 99;
+        group.add(edgeLines);
+      }
+    }
+
+    scene.add(group);
+    waypointMarkerGroupRef.current = group;
   }
 
   function getOfficeNodePosition(office) {
@@ -2128,6 +2441,8 @@ export default function ThreeMapViewer({
       return;
     }
 
+    isRouteFollowingRef.current = false;
+    routeFollowOffsetRef.current = null;
     const { target, cameraPosition } = getFrontOverviewView(
       bounds,
       nodePositionsRef.current,
@@ -2165,26 +2480,12 @@ export default function ThreeMapViewer({
   }
 
   function notifyRouteFloorChange(floorNumber) {
-    onRouteFloorChangeRef.current?.(getFloorLabel(floorNumber));
-  }
-
-  function getRouteOverlayY(points, floorNumber) {
-    const floorData = floorMetadataRef.current.get(floorNumber);
-    const floorRouteY = floorData?.routeY;
-
-    if (Number.isFinite(floorRouteY)) {
-      return floorRouteY + ROUTE_FLOOR_LIFT;
-    }
-
-    const routeFloorY = points.reduce(
-      (minY, point) => Math.min(minY, point.y),
-      points[0]?.y ?? 0,
+    onRouteFloorChangeRef.current?.(
+      getFloorLabel(floorNumber, floorsRef.current),
     );
-
-    return routeFloorY + ROUTE_FLOOR_LIFT;
   }
 
-  function createRouteGroup(points, floorNumber) {
+  function createRouteGroup(points, routeFloors, office) {
     const scene = sceneRef.current;
 
     if (!scene || points.length < 2) {
@@ -2196,24 +2497,13 @@ export default function ThreeMapViewer({
     const group = new THREE.Group();
     group.name = "generated_3d_route";
 
-    const routeY = getRouteOverlayY(points, floorNumber);
     const routePoints = points.map(
-      (point) => new THREE.Vector3(point.x, routeY, point.z),
+      (point) => point.clone().add(new THREE.Vector3(0, ROUTE_FLOOR_LIFT, 0)),
     );
     const routePointDistances = getRoutePointDistances(routePoints);
     const totalDistance = getRouteDistance(routePoints);
-    const animationDuration = THREE.MathUtils.clamp(
-      totalDistance * ROUTE_ANIMATION_MS_PER_UNIT,
-      ROUTE_ANIMATION_MIN_MS,
-      ROUTE_ANIMATION_MAX_MS,
-    );
-    const baseMaterial = new THREE.MeshBasicMaterial({
-      color: ROUTE_COLOR,
-      transparent: true,
-      opacity: 0.16,
-      depthTest: true,
-      depthWrite: false,
-    });
+    const animationDuration =
+      (totalDistance / ROUTE_SPEED_UNITS_PER_SECOND) * 1000;
     const pathMaterial = new THREE.MeshBasicMaterial({
       color: ROUTE_COLOR,
       transparent: true,
@@ -2227,7 +2517,6 @@ export default function ThreeMapViewer({
       const start = routePoints[index];
       const end = routePoints[index + 1];
       const segmentDistance = start.distanceTo(end);
-      const baseSegment = createRouteSegment(start, end, 0.021, baseMaterial, 30);
       const pathSegment = createRouteSegment(
         start,
         end,
@@ -2236,10 +2525,6 @@ export default function ThreeMapViewer({
         31,
         true,
       );
-
-      if (baseSegment) {
-        group.add(baseSegment);
-      }
 
       if (pathSegment) {
         pathSegment.visible = false;
@@ -2250,6 +2535,8 @@ export default function ThreeMapViewer({
           routeStartDistance: traveledDistance,
           routeEndDistance: traveledDistance + segmentDistance,
           segmentLength: segmentDistance,
+          routeStartFloor: routeFloors[index] ?? START_FLOOR_NUMBER,
+          routeEndFloor: routeFloors[index + 1] ?? routeFloors[index] ?? START_FLOOR_NUMBER,
         };
         group.add(pathSegment);
       }
@@ -2277,6 +2564,7 @@ export default function ThreeMapViewer({
       sphere.userData = {
         isRouteMarker: true,
         revealDistance: routePointDistances[index],
+        routeFloorNumber: routeFloors[index] ?? 1,
       };
       group.add(sphere);
     });
@@ -2298,9 +2586,13 @@ export default function ThreeMapViewer({
 
     group.userData = {
       routePoints,
+      routeFloors,
+      destinationOffice: office,
+      routePointDistances,
       totalDistance,
       startedAt: window.performance.now(),
       animationDuration,
+      isComplete: false,
     };
 
     scene.add(group);
@@ -2311,11 +2603,19 @@ export default function ThreeMapViewer({
   function updateRouteAnimation(now) {
     const routeGroup = routeGroupRef.current;
     const routePoints = routeGroup?.userData.routePoints;
+    const routeFloors = routeGroup?.userData.routeFloors;
+    const routePointDistances = routeGroup?.userData.routePointDistances;
     const totalDistance = routeGroup?.userData.totalDistance ?? 0;
     const animationDuration = routeGroup?.userData.animationDuration ?? 0;
     const startedAt = routeGroup?.userData.startedAt ?? now;
 
-    if (!routeGroup || !routePoints || totalDistance <= 0 || animationDuration <= 0) {
+    if (
+      !routeGroup ||
+      !routePoints ||
+      !routeFloors ||
+      totalDistance <= 0 ||
+      animationDuration <= 0
+    ) {
       return;
     }
 
@@ -2324,12 +2624,68 @@ export default function ThreeMapViewer({
       0,
       1,
     );
-    const easedProgress = easeInOutCubic(progress);
-    const visibleDistance = totalDistance * easedProgress;
+    const visibleDistance = totalDistance * progress;
     const routeHeadPosition = getRoutePointAtDistance(
       routePoints,
       visibleDistance,
     );
+    let activeSegmentIndex = 0;
+    while (
+      activeSegmentIndex < routePoints.length - 2 &&
+      visibleDistance >= (routePointDistances?.[activeSegmentIndex + 1] ?? 0)
+    ) {
+      activeSegmentIndex += 1;
+    }
+
+    const activeSegmentStart =
+      routePointDistances?.[activeSegmentIndex] ?? 0;
+    const activeSegmentEnd =
+      routePointDistances?.[activeSegmentIndex + 1] ?? activeSegmentStart;
+    const activeSegmentProgress = THREE.MathUtils.clamp(
+      (visibleDistance - activeSegmentStart) /
+        Math.max(activeSegmentEnd - activeSegmentStart, 0.001),
+      0,
+      1,
+    );
+    const segmentStartFloor =
+      routeFloors[activeSegmentIndex] ?? START_FLOOR_NUMBER;
+    const segmentEndFloor =
+      routeFloors[activeSegmentIndex + 1] ?? segmentStartFloor;
+    const routeFloor =
+      segmentStartFloor !== segmentEndFloor && activeSegmentProgress < 1
+        ? segmentStartFloor
+        : segmentEndFloor;
+    if (routeFloor !== currentRouteFloorRef.current) {
+      currentRouteFloorRef.current = routeFloor;
+      setVisibleFloor(routeFloor);
+      notifyRouteFloorChange(routeFloor);
+      const bounds = modelBoundsRef.current;
+      if (bounds) {
+        routeFollowOffsetRef.current = getRouteFollowOffset(
+          routeFloor,
+          bounds,
+          floorMetadataRef.current,
+        );
+      }
+    }
+
+    if (
+      isRouteFollowingRef.current &&
+      !focusAnimationRef.current &&
+      routeHeadPosition
+    ) {
+      const camera = cameraRef.current;
+      const controls = controlsRef.current;
+      const followOffset = routeFollowOffsetRef.current;
+
+      if (camera && controls && followOffset) {
+        controls.target.lerp(routeHeadPosition, 0.12);
+        camera.position.lerp(
+          controls.target.clone().add(followOffset),
+          0.12,
+        );
+      }
+    }
 
     routeGroup.children.forEach((child) => {
       if (child.userData.isAnimatedRouteSegment) {
@@ -2342,13 +2698,29 @@ export default function ThreeMapViewer({
           1,
         );
 
-        child.visible = segmentProgress > 0;
+        const visibleFloor = visibleFloorRef.current;
+        const routeStartFloor =
+          child.userData.routeStartFloor ?? START_FLOOR_NUMBER;
+        const routeEndFloor =
+          child.userData.routeEndFloor ?? routeStartFloor;
+        const isFloorTransition = routeStartFloor !== routeEndFloor;
+        const floorIsVisible =
+          visibleFloor === null ||
+          (isFloorTransition
+            ? visibleFloor === routeStartFloor ||
+              visibleFloor === routeEndFloor
+            : routeEndFloor <= visibleFloor);
+        child.visible = segmentProgress > 0 && floorIsVisible;
         child.scale.y = Math.max(segmentLength * segmentProgress, 0.001);
         return;
       }
 
       if (child.userData.isRouteMarker) {
-        child.visible = visibleDistance >= (child.userData.revealDistance ?? 0);
+        const visibleFloor = visibleFloorRef.current;
+        child.visible =
+          visibleDistance >= (child.userData.revealDistance ?? 0) &&
+          (visibleFloor === null ||
+            (child.userData.routeFloorNumber ?? START_FLOOR_NUMBER) <= visibleFloor);
         return;
       }
 
@@ -2358,282 +2730,156 @@ export default function ThreeMapViewer({
         child.position.y += Math.sin(now * 0.012) * 0.012;
       }
     });
-  }
 
-  function getRouteStartPosition() {
-    return routeLandmarkPositionsRef.current.get("route-start")?.clone() ?? null;
-  }
-
-  function getVerticalRoutePosition(type, floorNumber) {
-    return (
-      routeLandmarkPositionsRef.current.get(`${type}-${floorNumber}`)?.clone() ??
-      null
-    );
-  }
-
-  function getOfficeDestinationPosition(office) {
-    return officeMarkerPositionsRef.current.get(office?.id)?.clone() ?? null;
-  }
-
-  function getVerticalTravelType(destinationFloor) {
-    if (destinationFloor === 2) {
-      return "stairs";
+    if (progress >= 1 && !routeGroup.userData.isComplete) {
+      routeGroup.userData.isComplete = true;
+      routeGroup.children.forEach((child) => {
+        if (child.userData.isAnimatedRouteSegment) {
+          child.visible = true;
+          child.scale.y = child.userData.segmentLength;
+        } else if (child.userData.isRouteMarker) {
+          child.visible = true;
+        }
+      });
+      const destination = routePoints[routePoints.length - 1];
+      const bounds = modelBoundsRef.current;
+      if (destination && bounds) {
+        isRouteFollowingRef.current = false;
+        setFocusMarker(destination);
+        animateView(
+          destination,
+          destination.clone().add(
+            routeFollowOffsetRef.current ?? getRouteFollowOffset(
+              routeFloor,
+              bounds,
+              floorMetadataRef.current,
+            ),
+          ),
+        );
+      }
     }
-
-    if (destinationFloor === 3) {
-      return "elevator";
-    }
-
-    return null;
   }
 
-  function createRoutePlanForOffice(office) {
-    const startPosition = getRouteStartPosition();
-    const destinationPosition = getOfficeDestinationPosition(office);
-
-    if (!office || !startPosition || !destinationPosition) {
-      return [];
-    }
-
-    const destinationFloor = getFloorNumber(office.floor);
-    const verticalType = getVerticalTravelType(destinationFloor);
-
-    if (!verticalType) {
-      return [
-        {
-          floorNumber: START_FLOOR_NUMBER,
-          startPosition,
-          endPosition: destinationPosition,
-          label: "same-floor",
-        },
-      ];
-    }
-
-    const lowerVerticalPosition = getVerticalRoutePosition(
-      verticalType,
-      START_FLOOR_NUMBER,
-    );
-    const upperVerticalPosition = getVerticalRoutePosition(
-      verticalType,
-      destinationFloor,
+  function getGraphRouteForOffice(office) {
+    const modelRoot = modelRootRef.current;
+    const destinationNode = pathNodesRef.current.find(
+      (node) =>
+        node.officeId === office?.id || node.id === office?.routeNode,
     );
 
-    if (!lowerVerticalPosition || !upperVerticalPosition) {
-      return [];
+    if (!office || !modelRoot || !destinationNode) {
+      return {
+        points: [],
+        floors: [],
+        error: !destinationNode ? "missing-destination" : "missing-start",
+      };
     }
 
-    return [
-      {
-        floorNumber: START_FLOOR_NUMBER,
-        startPosition,
-        endPosition: lowerVerticalPosition,
-        label: `${verticalType}-approach`,
-      },
-      {
-        floorNumber: destinationFloor,
-        startPosition: upperVerticalPosition,
-        endPosition: destinationPosition,
-        label: `${verticalType}-destination`,
-      },
-    ];
+    const result = findWaypointRoute({
+      nodes: pathNodesRef.current,
+      edges: pathEdgesRef.current,
+      floors: floorsRef.current,
+      startNodeId: startNodeIdRef.current,
+      destinationNodeId: destinationNode.id,
+    });
+
+    if (result.error || result.nodes.length < 2) {
+      return { points: [], floors: [], error: result.error || "no-route" };
+    }
+
+    return {
+      points: result.nodes.map((node) =>
+        modelRoot.localToWorld(
+          new THREE.Vector3(node.position.x, node.position.y, node.position.z),
+        ),
+      ),
+      floors: result.nodes.map((node) =>
+        getFloorNumber(node.floor, floorsRef.current, node.floorId),
+      ),
+      error: null,
+    };
   }
 
-  function getBlockedVerticalAccessPositions(floorNumber, startPosition, endPosition) {
-    return (verticalAccessPositionsRef.current.get(floorNumber) ?? [])
-      .filter(({ position }) => {
-        const isEndpoint =
-          position.distanceTo(startPosition) <= NAVMESH_ENDPOINT_CLEARANCE ||
-          position.distanceTo(endPosition) <= NAVMESH_ENDPOINT_CLEARANCE;
+  function enterRouteForOffice(office, instant = false) {
+    clearRouteSequenceTimers();
+    disposeRouteGroup();
+    isRouteFollowingRef.current = false;
+    routeFollowOffsetRef.current = null;
 
-        return !isEndpoint;
-      })
-      .map(({ position }) => position.clone());
-  }
-
-  function createRouteForOffice(office, displayFloorNumber = getRouteStartFloorNumber()) {
-    const navmeshRouteData = navmeshRouteDataRef.current;
-    const routeSegment = createRoutePlanForOffice(office).find(
-      (segment) => segment.floorNumber === displayFloorNumber,
-    );
-
-    if (!navmeshRouteData || !routeSegment) {
-      disposeRouteGroup();
+    const route = getGraphRouteForOffice(office);
+    if (route.error) {
+      const routeStatus = `unavailable-${route.error}`;
       if (mountRef.current) {
-        mountRef.current.dataset.routeStatus = `missing-floor-${displayFloorNumber}`;
+        mountRef.current.dataset.routeStatus = routeStatus;
+      }
+      onNavigationStatusRef.current?.({
+        status: "unavailable",
+        officeName: office?.name || "",
+        reason: route.error,
+      });
+      if (import.meta.env.DEV) {
+        console.warn(`No configured waypoint route for ${office?.name || "office"}: ${route.error}`);
       }
       return [];
     }
 
-    const blockedPositions = getBlockedVerticalAccessPositions(
-      displayFloorNumber,
-      routeSegment.startPosition,
-      routeSegment.endPosition,
-    );
-    const routePoints = createNavmeshRoutePoints(
-      routeSegment.startPosition,
-      routeSegment.endPosition,
-      navmeshRouteData,
-      blockedPositions,
-      displayFloorNumber,
-    );
-
-    if (routePoints.length < 2) {
-      disposeRouteGroup();
-      if (mountRef.current) {
-        mountRef.current.dataset.routeStatus = `missing-navmesh-floor-${displayFloorNumber}`;
-      }
-      return [];
-    }
-
-    createRouteGroup(routePoints, displayFloorNumber);
-    if (mountRef.current) {
-      mountRef.current.dataset.routeStatus = `ready-navmesh-${routeSegment.label}-floor-${displayFloorNumber}-points-${routePoints.length}`;
-      mountRef.current.dataset.routeEndDistance = routePoints[
-        routePoints.length - 1
-      ]
-        .distanceTo(routeSegment.endPosition)
-        .toFixed(3);
-      mountRef.current.dataset.routePoints = routePoints
-        .map((point) =>
-          [point.x, point.y, point.z]
-            .map((value) => value.toFixed(3))
-            .join(","),
-        )
-        .join(";");
-    }
-    return routePoints;
-  }
-
-  function renderRouteFloorForOffice(
-    office,
-    instant = false,
-    displayFloorNumber = getRouteStartFloorNumber(),
-    { focusWhenMissing = true } = {},
-  ) {
-    const points = createRouteForOffice(office, displayFloorNumber);
+    const startFloor = route.floors[0] ?? START_FLOOR_NUMBER;
+    setVisibleFloor(startFloor);
+    currentRouteFloorRef.current = startFloor;
+    notifyRouteFloorChange(startFloor);
+    createRouteGroup(route.points, route.floors, office);
     const bounds = modelBoundsRef.current;
-    const floorMetadata = floorMetadataRef.current;
-    setVisibleFloor(displayFloorNumber);
-    notifyRouteFloorChange(displayFloorNumber);
-
-    if (points.length < 2 || !bounds) {
-      if (focusWhenMissing) {
-        focusOffice(office, instant);
-      }
-      return points;
-    }
-
-    const { target, cameraPosition } = getKioskRouteView(
-      points,
-      bounds,
-      displayFloorNumber,
-      floorMetadata,
-    );
-
-    setFocusMarker(points[points.length - 1]);
-    animateView(target, cameraPosition, instant);
-    return points;
-  }
-
-  function enterRouteForOffice(
-    office,
-    instant = false,
-    displayFloorNumber = getRouteStartFloorNumber(),
-  ) {
-    clearRouteSequenceTimers();
-    return renderRouteFloorForOffice(office, instant, displayFloorNumber);
-  }
-
-  function startRouteSequenceForOffice(office, instant = false) {
-    clearRouteSequenceTimers();
-
-    if (!office) {
-      return [];
-    }
-
-    const routePlan = createRoutePlanForOffice(office);
-    if (routePlan.length === 0) {
-      disposeRouteGroup();
-      if (mountRef.current) {
-        mountRef.current.dataset.routeStatus = "missing-plan";
-      }
-      focusOffice(office, instant);
-      return [];
-    }
-
-    const runId = routeSequenceRunRef.current;
-    let segmentIndex = 0;
-    let lastPoints = [];
-
-    function renderNextFloor(stepInstant = false) {
-      if (
-        routeSequenceRunRef.current !== runId ||
-        segmentIndex >= routePlan.length
-      ) {
-        return;
-      }
-
-      const floorNumber = routePlan[segmentIndex].floorNumber;
-      const isLastFloor = segmentIndex === routePlan.length - 1;
-      const points = renderRouteFloorForOffice(
-        office,
-        stepInstant,
-        floorNumber,
-        { focusWhenMissing: isLastFloor },
+    if (bounds && route.points[0]) {
+      const start = route.points[0];
+      routeFollowOffsetRef.current = getRouteFollowOffset(
+        startFloor,
+        bounds,
+        floorMetadataRef.current,
       );
-
-      if (points.length >= 2) {
-        lastPoints = points;
-      }
-
-      segmentIndex += 1;
-
-      if (segmentIndex >= routePlan.length) {
-        return;
-      }
-
-      const animationDuration =
-        points.length >= 2
-          ? routeGroupRef.current?.userData.animationDuration ?? 0
-          : 0;
-      const transitionDelay = animationDuration > 0 ? animationDuration + 650 : 250;
-      const timerId = window.setTimeout(() => renderNextFloor(false), transitionDelay);
-      routeSequenceTimersRef.current.push(timerId);
+      isRouteFollowingRef.current = true;
+      setFocusMarker(start);
+      animateView(start, start.clone().add(routeFollowOffsetRef.current), instant);
     }
 
-    renderNextFloor(instant);
-    return lastPoints;
+    if (mountRef.current) {
+      mountRef.current.dataset.routeStatus = "ready-waypoint-graph";
+      mountRef.current.dataset.routeNodeCount = String(route.points.length);
+    }
+    onNavigationStatusRef.current?.({
+      status: "ready",
+      officeName: office?.name || "",
+      reason: "",
+    });
+    return route.points;
   }
 
   function focusFloor(floor, instant = false) {
     const bounds = modelBoundsRef.current;
-    const floorNumber = getFloorNumber(floor);
+    const floorNumber = getFloorNumber(floor, floorsRef.current);
     const floorMetadata = floorMetadataRef.current;
 
+    isRouteFollowingRef.current = false;
+    routeFollowOffsetRef.current = null;
     setVisibleFloor(floorNumber);
+    notifyRouteFloorChange(floorNumber);
 
     if (!bounds) {
       return;
     }
 
-    const selectedOffice = selectedOfficeRef.current;
-    if (selectedOffice) {
-      const routePoints = createRouteForOffice(selectedOffice, floorNumber);
-
-      if (routePoints.length >= 2) {
-        const { target, cameraPosition } = getKioskRouteView(
-          routePoints,
-          bounds,
-          floorNumber,
-          floorMetadata,
-        );
-        setFocusMarker(routePoints[routePoints.length - 1]);
-        animateView(target, cameraPosition, instant);
-        return;
-      }
+    const routeGroup = routeGroupRef.current;
+    if (routeGroup?.userData.routeFloors?.includes(floorNumber)) {
+      const { target, cameraPosition } = getFloorOverviewView(
+        floorNumber,
+        bounds,
+        floorMetadata,
+      );
+      animateView(target, cameraPosition, instant);
+      return;
     }
 
     disposeRouteGroup();
+    currentRouteFloorRef.current = floorNumber;
     if (focusMarkerRef.current) {
       focusMarkerRef.current.visible = false;
     }
@@ -2650,7 +2896,7 @@ export default function ThreeMapViewer({
     animateView(target, cameraPosition, instant);
   }
 
-  function zoomModel(direction) {
+  function zoomModel(direction, instant = false) {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
 
@@ -2669,7 +2915,38 @@ export default function ThreeMapViewer({
       .clone()
       .add(cameraVector.normalize().multiplyScalar(nextDistance));
 
-    animateView(target, nextPosition);
+    animateView(target, nextPosition, instant);
+  }
+
+  function applyViewCommand(command, instant = false) {
+    if (!command || command.type === "reset-view") {
+      clearRouteSequenceTimers();
+      resetModelView(instant);
+      return;
+    }
+
+    if (command.type === "focus-office" || command.type === "enter-route") {
+      enterRouteForOffice(selectedOfficeRef.current, instant);
+      return;
+    }
+
+    if (command.type === "focus-floor") {
+      clearRouteSequenceTimers();
+      focusFloor(
+        command.payload?.floor ?? selectedOfficeRef.current?.floor,
+        instant,
+      );
+      return;
+    }
+
+    if (command.type === "zoom-in") {
+      zoomModel("in", instant);
+      return;
+    }
+
+    if (command.type === "zoom-out") {
+      zoomModel("out", instant);
+    }
   }
 
   useEffect(() => {
@@ -2685,51 +2962,47 @@ export default function ThreeMapViewer({
   }, [selectedOffice?.id]);
 
   useEffect(() => {
+    pathNodesRef.current = pathNodes;
+    pathEdgesRef.current = pathEdges;
+    startNodeIdRef.current = startNodeId;
+    if (modelRootRef.current) {
+      applyConfiguredFloorGroups();
+      const bounds = new THREE.Box3().setFromObject(modelRootRef.current);
+      floorMetadataRef.current = getFloorMetadata(
+        modelRootRef.current,
+        bounds,
+        floorNumbers,
+      );
+      setVisibleFloor(visibleFloorRef.current);
+      updateWaypointMarkers();
+    }
+  }, [pathSourceKey, startNodeId, selectedWaypointId, waypointEditMode, showNavigationDebug]);
+
+  useEffect(() => {
+    waypointEditModeRef.current = waypointEditMode;
+    isDrawingRouteRef.current = isDrawingRoute;
+    selectedWaypointIdRef.current = selectedWaypointId;
+    isPlacingWaypointRef.current = isPlacingWaypoint;
+    onWaypointPlaceRef.current = onWaypointPlace;
+    onRoutePointPlaceRef.current = onRoutePointPlace;
+    onWaypointPositionChangeRef.current = onWaypointPositionChange;
+    onNavigationStatusRef.current = onNavigationStatus;
+  }, [
+    waypointEditMode,
+    isDrawingRoute,
+    selectedWaypointId,
+    isPlacingWaypoint,
+    onWaypointPlace,
+    onRoutePointPlace,
+    onWaypointPositionChange,
+    onNavigationStatus,
+  ]);
+
+  useEffect(() => {
     if (!viewCommand) {
       return;
     }
-
-    if (viewCommand.type === "reset-view") {
-      clearRouteSequenceTimers();
-      resetModelView();
-      return;
-    }
-
-    if (viewCommand.type === "focus-office") {
-      enterRouteForOffice(selectedOfficeRef.current);
-      return;
-    }
-
-    if (viewCommand.type === "enter-route") {
-      if (viewCommand.payload?.autoFloors) {
-        startRouteSequenceForOffice(selectedOfficeRef.current);
-        return;
-      }
-
-      enterRouteForOffice(
-        selectedOfficeRef.current,
-        false,
-        viewCommand.payload?.floor
-          ? getFloorNumber(viewCommand.payload.floor)
-          : getRouteStartFloorNumber(),
-      );
-      return;
-    }
-
-    if (viewCommand.type === "focus-floor") {
-      clearRouteSequenceTimers();
-      focusFloor(viewCommand.payload?.floor ?? selectedOfficeRef.current?.floor);
-      return;
-    }
-
-    if (viewCommand.type === "zoom-in") {
-      zoomModel("in");
-      return;
-    }
-
-    if (viewCommand.type === "zoom-out") {
-      zoomModel("out");
-    }
+    applyViewCommand(viewCommand);
   }, [viewCommand?.sequence]);
 
   useEffect(() => {
@@ -2743,12 +3016,15 @@ export default function ThreeMapViewer({
     let loadedModel = null;
     let isDisposed = false;
     let pointerStart = null;
+    let draggingWaypoint = null;
     const clickableOfficeMeshes = [];
     const pointer = new THREE.Vector2();
     const raycaster = new THREE.Raycaster();
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe8edf5);
+    const skyBlue = 0xbfe8ff;
+    scene.background = new THREE.Color(skyBlue);
+    scene.fog = new THREE.Fog(skyBlue, 18, 58);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
@@ -2758,8 +3034,10 @@ export default function ThreeMapViewer({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       preserveDrawingBuffer: true,
+      powerPreference: "high-performance",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(skyBlue, 1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.shadowMap.enabled = true;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mountElement.appendChild(renderer.domElement);
@@ -2825,6 +3103,59 @@ export default function ThreeMapViewer({
     fillLight.position.set(-7, 6, -6);
     scene.add(fillLight);
 
+    const clouds = new THREE.Group();
+    clouds.position.y = 1.8;
+    scene.add(clouds);
+
+    const cloudMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf7fcff,
+      transparent: true,
+      opacity: 0.82,
+      emissive: 0xeaf7ff,
+      emissiveIntensity: 0.08,
+      roughness: 1,
+      metalness: 0,
+      depthWrite: false,
+    });
+
+    for (let i = 0; i < 6; i += 1) {
+      const cloud = new THREE.Group();
+      const isLarge = i % 3 === 0;
+      const puffSpecs = isLarge
+        ? [
+            [0, 0, 0, 0.8],
+            [0.7, 0.12, 0.2, 0.68],
+            [-0.7, 0.15, -0.18, 0.64],
+            [1.14, 0.04, 0.1, 0.4],
+            [-1.18, -0.08, 0.18, 0.42],
+            [0.1, 0.4, 0.08, 0.44],
+          ]
+        : [
+            [0, 0, 0, 0.52],
+            [0.46, 0.09, 0.12, 0.42],
+            [-0.54, 0.07, -0.1, 0.4],
+            [0.94, 0.04, 0.12, 0.3],
+            [-0.94, -0.06, 0.18, 0.32],
+          ];
+
+      puffSpecs.forEach(([x, y, z, radius]) => {
+        const puff = new THREE.Mesh(
+          new THREE.SphereGeometry(radius, 16, 12),
+          cloudMaterial,
+        );
+        puff.position.set(x, y, z);
+        cloud.add(puff);
+      });
+
+      cloud.position.set(-11 + i * 4.8, 1.7 + (i % 3) * 0.35, -12 - (i % 3) * 3.2);
+      cloud.rotation.y = (i % 2 === 0 ? 1 : -1) * 0.45;
+      cloud.userData = {
+        drift: 0.003 + i * 0.0005,
+        phase: i * 1.3,
+      };
+      clouds.add(cloud);
+    }
+
     function resizeRenderer() {
       const width = mountElement.clientWidth || 1;
       const height = mountElement.clientHeight || 1;
@@ -2850,20 +3181,106 @@ export default function ThreeMapViewer({
       );
 
       return matchingIntersection
-        ? getClickableOfficeId(matchingIntersection.object)
+        ? getClickableOfficeId(matchingIntersection.object, modelOfficeObjectIds)
         : null;
+    }
+
+    function setPointerFromEvent(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return false;
+
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      return true;
+    }
+
+    function getModelPositionAtPointer(event) {
+      const modelRoot = modelRootRef.current;
+      if (!modelRoot || !setPointerFromEvent(event)) return null;
+
+      const intersection = raycaster
+        .intersectObject(modelRoot, true)
+        .find(
+          ({ object }) =>
+            object.isMesh &&
+            isObjectVisibleInScene(object) &&
+            (!(waypointEditModeRef.current || isDrawingRouteRef.current) ||
+              !isolatedFloorViewRef.current ||
+              getModelFloorNumber(object) ===
+                getFloorNumber(editFloorRef.current, floorsRef.current)) &&
+            !isNavmeshObject(object) &&
+            !shouldHideRouteHelper(object),
+        );
+      if (!intersection) return null;
+
+      return modelRoot.worldToLocal(intersection.point.clone());
     }
 
     function handlePointerDown(event) {
       pointerStart = { x: event.clientX, y: event.clientY };
+
+      if (!waypointEditModeRef.current || !setPointerFromEvent(event)) return;
+      if (isPlacingWaypointRef.current) return;
+
+      const markers = [...waypointMarkersRef.current.values()];
+      const markerHit = raycaster.intersectObjects(markers, false)[0];
+      if (markerHit) {
+        const marker = markerHit.object;
+        draggingWaypoint = {
+          id: marker.userData.waypointId,
+          marker,
+          plane: new THREE.Plane(
+            new THREE.Vector3(0, 1, 0),
+            -marker.position.y,
+          ),
+        };
+        controls.enabled = false;
+        renderer.domElement.style.cursor = "grabbing";
+      }
     }
 
     function handlePointerMove(event) {
+      if (draggingWaypoint && setPointerFromEvent(event)) {
+        const intersection = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(draggingWaypoint.plane, intersection)) {
+          draggingWaypoint.marker.position.copy(intersection);
+        }
+        return;
+      }
+
+      if (waypointEditModeRef.current) {
+        renderer.domElement.style.cursor = isPlacingWaypointRef.current
+          ? "crosshair"
+          : "grab";
+        return;
+      }
+
       const officeId = getOfficeIdAtPointer(event);
       renderer.domElement.style.cursor = officeId ? "pointer" : "grab";
     }
 
     function handlePointerUp(event) {
+      if (draggingWaypoint) {
+        const draggedWaypoint = draggingWaypoint;
+        draggingWaypoint = null;
+        controls.enabled = true;
+        pointerStart = null;
+        const modelRoot = modelRootRef.current;
+        if (modelRoot) {
+          const position = modelRoot.worldToLocal(
+            draggedWaypoint.marker.position.clone(),
+          );
+          onWaypointPositionChangeRef.current?.(draggedWaypoint.id, {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+          });
+        }
+        renderer.domElement.style.cursor = "grab";
+        return;
+      }
+
       if (!pointerStart) {
         return;
       }
@@ -2878,8 +3295,36 @@ export default function ThreeMapViewer({
         return;
       }
 
+      if (waypointEditModeRef.current && isPlacingWaypointRef.current) {
+        const position = getModelPositionAtPointer(event);
+        if (position) {
+          event.preventDefault();
+          onWaypointPlaceRef.current?.({
+            x: position.x,
+            y: position.y,
+            z: position.z,
+          });
+        }
+        return;
+      }
+
+      if (isDrawingRouteRef.current) {
+        const position = getModelPositionAtPointer(event);
+        if (position) {
+          event.preventDefault();
+          onRoutePointPlaceRef.current?.({
+            x: position.x,
+            y: position.y,
+            z: position.z,
+          });
+        }
+        return;
+      }
+
+      if (waypointEditModeRef.current) return;
+
       const officeId = getOfficeIdAtPointer(event);
-      const office = OFFICES_BY_ID.get(officeId);
+      const office = officesById.get(officeId);
 
       if (!office) {
         return;
@@ -2887,7 +3332,7 @@ export default function ThreeMapViewer({
 
       event.preventDefault();
       onSelectOfficeRef.current?.(office.id, { focusDestinationFloor: true });
-      enterRouteForOffice(office, false, getFloorNumber(office.floor));
+      enterRouteForOffice(office);
 
       if (mountRef.current) {
         mountRef.current.dataset.clickedOffice = office.id;
@@ -2913,9 +3358,29 @@ export default function ThreeMapViewer({
         );
       });
 
-    Promise.all(activeModelPaths.map(loadModel)).then(
-      (loadedScenes) => {
+    Promise.allSettled(activeModelPaths.map(loadModel)).then(
+      (results) => {
         if (isDisposed) {
+          return;
+        }
+
+        const loadedScenes = [];
+        const failedPaths = [];
+
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            loadedScenes.push(result.value);
+          } else {
+            failedPaths.push(activeModelPaths[index]);
+            console.error(
+              `Failed to load 3D model: ${activeModelPaths[index]}`,
+              result.reason,
+            );
+          }
+        });
+
+        if (loadedScenes.length === 0) {
+          setStatus("error");
           return;
         }
 
@@ -2935,6 +3400,7 @@ export default function ThreeMapViewer({
         });
 
         modelRootRef.current = loadedModel;
+        applyConfiguredFloorGroups();
         loadedModel.updateMatrixWorld(true);
 
         loadedModel.traverse((child) => {
@@ -2952,14 +3418,18 @@ export default function ThreeMapViewer({
             return;
           }
 
-          const officeId = getModelOfficeId(child);
-          const office = OFFICES_BY_ID.get(officeId);
+          const officeId = getModelOfficeId(child, modelOfficeObjectIds);
+      const office = officesById.get(officeId);
           if (child.isMesh && office) {
             child.userData = {
               ...child.userData,
               officeId,
               isClickableOfficeMarker: true,
-              floorNumber: getFloorNumber(office.floor),
+              floorNumber: getFloorNumber(
+                office.floor,
+                floorsRef.current,
+                office.floorId,
+              ),
             };
             child.castShadow = false;
             child.receiveShadow = false;
@@ -3009,6 +3479,7 @@ export default function ThreeMapViewer({
         const floorMetadata = getFloorMetadata(
           loadedModel,
           modelBoundsRef.current,
+          floorNumbers,
         );
         floorMetadataRef.current = floorMetadata;
 
@@ -3021,11 +3492,13 @@ export default function ThreeMapViewer({
         loadedModel.traverse((child) => {
           const routePointName = getRoutePointName(child.name);
           const routeEdge = getRouteEdge(child.name);
-          const office = OFFICES_BY_ID.get(child.userData?.officeId);
+          const office = officesById.get(child.userData?.officeId);
           const floorNumber =
             child.userData?.floorNumber ??
             getModelFloorNumber(child) ??
-            (office ? getFloorNumber(office.floor) : null);
+            (office
+              ? getFloorNumber(office.floor, floorsRef.current, office.floorId)
+              : null);
           const markerCenter = child.isMesh ? getObjectCenter(child) : null;
 
           if (routeEdge) {
@@ -3038,6 +3511,7 @@ export default function ThreeMapViewer({
               markerCenter,
               modelBoundsRef.current,
               floorMetadata,
+              getFloorNumber(office.floor, floorsRef.current, office.floorId),
             );
 
             if (markerRoutePosition) {
@@ -3088,7 +3562,6 @@ export default function ThreeMapViewer({
         routeLandmarkPositionsRef.current = routeLandmarkPositions;
         verticalAccessPositionsRef.current = verticalAccessPositions;
         routeEdgesRef.current = mergeRouteEdges(modelRouteEdges);
-        navmeshRouteDataRef.current = buildNavmeshRouteData(loadedModel);
 
         mountElement.dataset.routeNodes = String(nodePositions.size);
         mountElement.dataset.routeEdges = String(routeEdgesRef.current.length);
@@ -3100,42 +3573,56 @@ export default function ThreeMapViewer({
           ),
         );
         mountElement.dataset.modelSources = String(activeModelPaths.length);
-        mountElement.dataset.navmeshNodes = String(
-          navmeshRouteDataRef.current?.nodePositions.size ?? 0,
-        );
-        mountElement.dataset.navmeshEdges = String(
-          navmeshRouteDataRef.current?.routeEdges.length ?? 0,
-        );
-        mountElement.dataset.wallBlockers = String(
-          navmeshRouteDataRef.current?.wallBlockers.length ?? 0,
-        );
-        mountElement.dataset.navmeshComponents = String(
-          navmeshRouteDataRef.current?.componentCount ?? 0,
-        );
-
         setStatus("ready");
-        resetModelView(true);
-
-        if (selectedOfficeRef.current) {
-          startRouteSequenceForOffice(selectedOfficeRef.current, true);
-        }
+        applyViewCommand(viewCommandRef.current, true);
+        updateWaypointMarkers();
       },
-      () => {
+      (error) => {
         if (isDisposed) {
           return;
         }
 
+        console.error("Failed to process 3D models", error);
         setStatus("error");
       }
     );
 
     function animate(now = window.performance.now()) {
-      frameId = window.requestAnimationFrame(animate);
+      if (document.hidden || !mountElement.isConnected) {
+        frameId = 0;
+        return;
+      }
+
       updateRouteAnimation(now);
+      clouds.children.forEach((cloud, index) => {
+        cloud.position.x += cloud.userData.drift;
+
+        if (cloud.position.x > 15) {
+          cloud.position.x = -15;
+        }
+
+        cloud.position.y += Math.sin(now * 0.00045 + cloud.userData.phase + index) * 0.0007;
+      });
       controls.update();
       renderer.render(scene, camera);
+      frameId = window.requestAnimationFrame(animate);
     }
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+        return;
+      }
+
+      if (!frameId) {
+        frameId = window.requestAnimationFrame(animate);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     animate();
 
     return () => {
@@ -3144,6 +3631,7 @@ export default function ThreeMapViewer({
       if (focusAnimationRef.current) {
         window.cancelAnimationFrame(focusAnimationRef.current);
       }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       resizeObserver.disconnect();
       clearRouteSequenceTimers();
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);

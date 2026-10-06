@@ -2,17 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleHelp,
   Compass,
-  DoorOpen,
-  Footprints,
   House,
   Layers,
   MapPinned,
   Maximize2,
   Minus,
-  Navigation,
   PanelLeftOpen,
   Plus,
-  Route,
   Search,
   TimerReset,
   X,
@@ -21,89 +17,80 @@ import Header from "./components/Header.jsx";
 import LandingScreen from "./components/LandingScreen.jsx";
 import OfficeSidebar from "./components/OfficeSidebar.jsx";
 import MapPreview from "./components/MapPreview.jsx";
-import { offices } from "./data/offices.js";
+import useNavigatorConfig from "./hooks/useNavigatorConfig.js";
 
-const CITY_NAME = "Olongapo City";
 const START_FLOOR = "1st Floor";
-const DEFAULT_SELECTED_OFFICE_ID = "city-health";
-const IDLE_WARNING_MS = 30_000;
-const IDLE_RETURN_MS = 10_000;
-const floorOptions = [
-  { label: "1", floor: "1st Floor" },
-  { label: "2", floor: "2nd Floor" },
-  { label: "3", floor: "3rd Floor" },
-];
+const SHOW_NAVIGATION_DEBUG =
+  import.meta.env.DEV &&
+  new URLSearchParams(window.location.search).get("debugNavigation") === "1";
+const IDLE_WARNING_MS = 8_000;
+const IDLE_RETURN_SECONDS = 10;
+const IDLE_RETURN_MS = IDLE_RETURN_SECONDS * 1000;
 
-function getHallwaySide(mapPosition = {}) {
-  if ((mapPosition.x ?? 50) < 42) {
-    return "left side";
-  }
-
-  if ((mapPosition.x ?? 50) > 58) {
-    return "right side";
-  }
-
-  return "center hallway";
-}
-
-function getHallwayDepth(mapPosition = {}) {
-  if ((mapPosition.y ?? 50) < 42) {
-    return "first hallway";
-  }
-
-  if ((mapPosition.y ?? 50) < 64) {
-    return "middle hallway";
-  }
-
-  return "rear hallway";
-}
-
-function getVisitorDirections(office) {
-  const side = getHallwaySide(office.mapPosition);
-  const hallway = getHallwayDepth(office.mapPosition);
-  const verticalAccess =
-    office.floor === "2nd Floor"
-      ? "main stairs"
-      : office.floor === "3rd Floor"
-        ? "elevator"
-        : null;
-
-  if (office.floor === "1st Floor") {
-    return [
-      "Start at the 1st Floor lobby marker.",
-      `Follow the orange route toward the ${side} of the ${hallway}.`,
-      `Stop at ${office.room}.`,
-    ];
-  }
-
-  return [
-    "Start at the 1st Floor lobby marker.",
-    `Follow the orange route through the main hallway to the ${verticalAccess}.`,
-    `Use the ${verticalAccess} to reach the ${office.floor}.`,
-    `Press floor ${office.floor.charAt(0)} to view the final hallway segment toward the ${side} of the ${hallway}.`,
-    `Stop at ${office.room}.`,
-  ];
-}
-
-function getRouteDisplayFloor(office) {
-  return office?.floor === START_FLOOR ? office.floor : START_FLOOR;
+function getRouteDisplayFloor(office, floors) {
+  const startingFloor = floors.find((floor) => floor.enabled !== false);
+  return office?.floor === startingFloor?.label
+    ? office.floor
+    : startingFloor?.label || START_FLOOR;
 }
 
 export default function App() {
+  const {
+    config,
+    modelAssetStatus,
+    resolvedModelPaths,
+    resolvedLogoUrl,
+  } = useNavigatorConfig();
+  const floors = config.floors || [];
+  const enabledFloorIds = new Set(
+    floors.filter((floor) => floor.enabled !== false).map((floor) => floor.id),
+  );
+  const offices = (config.offices || []).filter(
+    (office) => enabledFloorIds.has(office.floorId),
+  );
+
+  const floorOptions = useMemo(() => {
+    return floors.filter((floor) => floor.enabled !== false).map((f, idx) => ({
+      label: String(f.order || f.number || idx + 1),
+      floor: f.label,
+    }));
+  }, [floors]);
+
   const [hasStarted, setHasStarted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOfficeId, setSelectedOfficeId] = useState(
-    offices.find((office) => office.id === DEFAULT_SELECTED_OFFICE_ID)?.id ??
-      offices[0].id,
+  const [selectedOfficeId, setSelectedOfficeId] = useState(() => {
+    return offices[0]?.id || "city-health";
+  });
+  const [activeFloor, setActiveFloor] = useState(
+    () => floors.find((floor) => floor.enabled !== false)?.label || START_FLOOR,
   );
-  const [activeFloor, setActiveFloor] = useState(START_FLOOR);
-  const [showDirections, setShowDirections] = useState(true);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [navigationMessage, setNavigationMessage] = useState("");
+  const [isSidebarVisible, setIsSidebarVisible] = useState(
+    () => !window.matchMedia("(max-width: 860px)").matches,
+  );
   const [mapCommand, setMapCommand] = useState(null);
   const [isIdleWarningVisible, setIsIdleWarningVisible] = useState(false);
+  const [idleCountdownSeconds, setIdleCountdownSeconds] = useState(IDLE_RETURN_SECONDS);
   const [isTutorialVisible, setIsTutorialVisible] = useState(false);
   const idleWarningTimerRef = useRef(null);
   const idleReturnTimerRef = useRef(null);
+  const idleCountdownTimerRef = useRef(null);
+
+  // Keep selected office ID valid if offices list changes
+  useEffect(() => {
+    if (offices.length > 0 && !offices.some((o) => o.id === selectedOfficeId)) {
+      setSelectedOfficeId(offices[0].id);
+    }
+  }, [offices, selectedOfficeId]);
+
+  useEffect(() => {
+    if (
+      activeFloor !== "All Floors" &&
+      !floorOptions.some((option) => option.floor === activeFloor)
+    ) {
+      setActiveFloor(floorOptions[0]?.floor || START_FLOOR);
+    }
+  }, [activeFloor, floorOptions]);
 
   const sendMapCommand = (type, payload = {}) => {
     setMapCommand((currentCommand) => ({
@@ -116,21 +103,23 @@ export default function App() {
   const clearIdleTimers = useCallback(() => {
     window.clearTimeout(idleWarningTimerRef.current);
     window.clearTimeout(idleReturnTimerRef.current);
+    window.clearInterval(idleCountdownTimerRef.current);
     idleWarningTimerRef.current = null;
     idleReturnTimerRef.current = null;
+    idleCountdownTimerRef.current = null;
   }, []);
 
   const handleReturnToLanding = useCallback(() => {
     clearIdleTimers();
     setHasStarted(false);
     setIsIdleWarningVisible(false);
+    setIdleCountdownSeconds(IDLE_RETURN_SECONDS);
     setIsTutorialVisible(false);
     setSearchTerm("");
-    setActiveFloor(START_FLOOR);
-    setShowDirections(true);
+    setActiveFloor(floors.find((floor) => floor.enabled !== false)?.label || START_FLOOR);
     setIsSidebarVisible(true);
     setMapCommand(null);
-  }, [clearIdleTimers]);
+  }, [clearIdleTimers, floors]);
 
   const restartIdleTimers = useCallback(() => {
     clearIdleTimers();
@@ -140,8 +129,13 @@ export default function App() {
     }
 
     setIsIdleWarningVisible(false);
+    setIdleCountdownSeconds(IDLE_RETURN_SECONDS);
     idleWarningTimerRef.current = window.setTimeout(() => {
+      setIdleCountdownSeconds(IDLE_RETURN_SECONDS);
       setIsIdleWarningVisible(true);
+      idleCountdownTimerRef.current = window.setInterval(() => {
+        setIdleCountdownSeconds((seconds) => Math.max(seconds - 1, 0));
+      }, 1000);
       idleReturnTimerRef.current = window.setTimeout(
         handleReturnToLanding,
         IDLE_RETURN_MS,
@@ -184,82 +178,85 @@ export default function App() {
         office.floor,
         office.category,
         office.description,
-        ...office.keywords,
+        ...(office.keywords || []),
       ]
         .join(" ")
         .toLowerCase();
 
       return searchableText.includes(normalizedSearch);
     });
-  }, [searchTerm]);
+  }, [offices, searchTerm]);
 
-  const selectedOffice =
-    offices.find((office) => office.id === selectedOfficeId) ?? offices[0];
-  const visitorDirections = getVisitorDirections(selectedOffice);
-
-  const getRouteText = (office) => {
-    const verticalStep =
-      office.floor === "2nd Floor"
-        ? `Main stairs to ${office.floor}`
-        : office.floor === "3rd Floor"
-          ? `Elevator to ${office.floor}`
-          : "Main corridor";
-
-    return `1st Floor lobby -> ${verticalStep} -> ${office.room}`;
-  };
-
-  const handleSelectOffice = (officeId, options = {}) => {
+  const selectedOffice = useMemo(
+    () => offices.find((office) => office.id === selectedOfficeId) ?? offices[0],
+    [offices, selectedOfficeId],
+  );
+  const handleSelectOffice = useCallback((officeId, options = {}) => {
     const office = offices.find((item) => item.id === officeId);
     const routeDisplayFloor =
       options.focusDestinationFloor && office
         ? office.floor
         : office
-          ? getRouteDisplayFloor(office)
-          : START_FLOOR;
+          ? getRouteDisplayFloor(office, floors)
+          : floors.find((floor) => floor.enabled !== false)?.label || START_FLOOR;
 
     setSelectedOfficeId(officeId);
+    setNavigationMessage("");
     if (office) {
       setActiveFloor(routeDisplayFloor);
     }
-    setShowDirections(true);
     sendMapCommand("enter-route", {
       floor: routeDisplayFloor,
       autoFloors: !options.focusDestinationFloor,
     });
-  };
+  }, [floors, offices]);
 
-  const handleSelectFloor = (floor) => {
+  const handleNavigationStatus = useCallback((result) => {
+    setNavigationMessage(
+      result.status === "unavailable"
+        ? "No route available to this office."
+        : "",
+    );
+  }, []);
+
+  const handleSelectFloor = useCallback((floor) => {
     setActiveFloor(floor);
     sendMapCommand("focus-floor", { floor });
-  };
+  }, []);
 
-  const handleRecenter = () => {
+  const handleRecenter = useCallback(() => {
     setActiveFloor("All Floors");
     sendMapCommand("reset-view");
-  };
+  }, []);
 
-  const handleEnterRoute = () => {
-    setActiveFloor(getRouteDisplayFloor(selectedOffice));
-    setShowDirections(true);
-    sendMapCommand("enter-route", { autoFloors: true });
-  };
-
-  const handleRouteFloorChange = (floor) => {
+  const handleRouteFloorChange = useCallback((floor) => {
     setActiveFloor(floor);
-  };
+  }, []);
 
-  const handleStart = () => {
+  const handleStart = useCallback(() => {
+    setActiveFloor("All Floors");
+    setMapCommand((currentCommand) => ({
+      type: "reset-view",
+      payload: {},
+      sequence: (currentCommand?.sequence ?? 0) + 1,
+    }));
     setHasStarted(true);
     setIsTutorialVisible(true);
-  };
+  }, []);
 
   return (
     <div className={`app ${hasStarted ? "app-home" : ""}`}>
       {!hasStarted ? (
         <>
-          <Header cityName={CITY_NAME} />
+          <Header
+            cityName={config.organizationName || config.cityName || "Olongapo City"}
+            title={config.navigatorTitle}
+            logoUrl={resolvedLogoUrl}
+          />
           <LandingScreen
-            cityName={CITY_NAME}
+            cityName={config.organizationName || config.cityName || "Olongapo City"}
+            title={config.navigatorTitle}
+            tagline={config.landingTagline}
             onStart={handleStart}
           />
         </>
@@ -274,7 +271,7 @@ export default function App() {
             <OfficeSidebar
               offices={filteredOffices}
               selectedOffice={selectedOffice}
-              selectedOfficeId={selectedOffice.id}
+              selectedOfficeId={selectedOffice?.id}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               onSelectOffice={handleSelectOffice}
@@ -290,6 +287,8 @@ export default function App() {
                     className="tool-button sidebar-show-button"
                     type="button"
                     onClick={() => setIsSidebarVisible(true)}
+                    aria-expanded={isSidebarVisible}
+                    aria-label="Show office search"
                   >
                     <PanelLeftOpen size={18} aria-hidden="true" />
                     Offices
@@ -330,86 +329,41 @@ export default function App() {
                   <Compass size={18} aria-hidden="true" />
                   Recenter
                 </button>
-                <button
-                  className="tool-button primary"
-                  type="button"
-                  onClick={handleEnterRoute}
-                >
-                  <Route size={18} aria-hidden="true" />
-                  Enter Route
-                </button>
               </div>
             </div>
 
             <MapPreview
               offices={offices}
-              selectedOfficeId={selectedOffice.id}
+              floors={floors}
+              modelPaths={resolvedModelPaths}
+              modelAssetStatus={modelAssetStatus}
+              pathNodes={config.pathNodes || []}
+              pathEdges={config.pathEdges || []}
+              startNodeId={config.startNodeId}
+              selectedOfficeId={selectedOffice?.id}
               mapCommand={mapCommand}
               onSelectOffice={handleSelectOffice}
               onRouteFloorChange={handleRouteFloorChange}
+              onNavigationStatus={handleNavigationStatus}
+              showNavigationDebug={SHOW_NAVIGATION_DEBUG}
             />
 
-            <aside className="map-legend" aria-label="Map legend">
-              <p>Legend</p>
-              <div>
-                <span className="legend-swatch floor-one" />
-                First floor
-              </div>
-              <div>
-                <span className="legend-swatch floor-two" />
-                Second floor
-              </div>
-              <div>
-                <span className="legend-swatch floor-three" />
-                Third floor
-              </div>
-              <div>
-                <span className="legend-swatch office" />
-                White walls
-              </div>
-              <div>
-                <span className="legend-swatch route" />
-                Generated Path
-              </div>
-            </aside>
-
-            {showDirections ? (
-              <aside className="route-instructions" aria-label="Visitor directions">
-                <div className="instruction-header-row">
-                  <div className="instruction-heading">
-                    <Footprints size={18} aria-hidden="true" />
-                    <span>Visitor directions</span>
-                  </div>
-                  <button
-                    className="instruction-close"
-                    type="button"
-                    onClick={() => setShowDirections(false)}
-                    aria-label="Hide visitor directions"
-                  >
-                    <X size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <strong>{selectedOffice.name}</strong>
-                <ol>
-                  {visitorDirections.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              </aside>
-            ) : (
-              <button
-                className="directions-toggle"
-                type="button"
-                onClick={() => setShowDirections(true)}
-                aria-label="Show visitor directions"
-              >
-                <Footprints size={18} aria-hidden="true" />
-                Directions
-              </button>
-            )}
+            {navigationMessage ? (
+              <p className="navigation-feedback" role="status">
+                {navigationMessage}
+              </p>
+            ) : null}
 
             <div className="floor-switcher" aria-label="Floor selector">
               <span>Floor</span>
+              <button
+                className={activeFloor === "All Floors" ? "active" : ""}
+                type="button"
+                onClick={handleRecenter}
+                aria-label="Show all floors"
+              >
+                All
+              </button>
               {floorOptions.map((option) => (
                 <button
                   className={activeFloor === option.floor ? "active" : ""}
@@ -448,23 +402,6 @@ export default function App() {
               </button>
             </div>
 
-            <aside className="route-summary" aria-label="Selected route summary">
-              <div className="route-metric">
-                <Route size={18} aria-hidden="true" />
-                <span>Route</span>
-                <strong>{getRouteText(selectedOffice)}</strong>
-              </div>
-              <div className="route-metric">
-                <DoorOpen size={18} aria-hidden="true" />
-                <span>Room</span>
-                <strong>{selectedOffice.room}</strong>
-              </div>
-              <div className="route-metric destination">
-                <Navigation size={18} aria-hidden="true" />
-                <span>Destination</span>
-                <strong>{selectedOffice.name}</strong>
-              </div>
-            </aside>
           </section>
         </main>
       )}
@@ -542,7 +479,19 @@ export default function App() {
               <TimerReset size={34} />
             </span>
             <strong>Are you still there?</strong>
-            <p>Touch anywhere to continue. Returning to the landing page in 10 seconds.</p>
+            <div
+              className="idle-countdown-ring"
+              role="timer"
+              aria-live="polite"
+              aria-label={`${idleCountdownSeconds} seconds before returning to the landing page`}
+              style={{
+                "--idle-progress": `${(idleCountdownSeconds / IDLE_RETURN_SECONDS) * 360}deg`,
+              }}
+            >
+              <span>{idleCountdownSeconds}</span>
+              <small>seconds</small>
+            </div>
+            <p>Touch anywhere to continue. No response will return this screen to the landing page.</p>
             <button type="button" onClick={restartIdleTimers}>
               Continue
             </button>

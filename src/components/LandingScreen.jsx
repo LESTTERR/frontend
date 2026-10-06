@@ -5,7 +5,12 @@ import {
   Route,
 } from "lucide-react";
 
-export default function LandingScreen({ cityName, onStart }) {
+export default function LandingScreen({
+  cityName,
+  title = "City Hall Navigator",
+  tagline,
+  onStart,
+}) {
   return (
     <main
       className="landing"
@@ -32,8 +37,8 @@ export default function LandingScreen({ cityName, onStart }) {
           </span>
 
           <div className="landing-title-block">
-            <h2>City Hall Navigator</h2>
-            <p>{cityName} Hall office finder and 3D route guide</p>
+            <h2>{title}</h2>
+            <p>{tagline || `${cityName} office finder and 3D route guide`}</p>
           </div>
         </div>
 
