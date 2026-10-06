@@ -65,6 +65,7 @@ export default function App() {
     () => floors.find((floor) => floor.enabled !== false)?.label || START_FLOOR,
   );
   const [navigationMessage, setNavigationMessage] = useState("");
+  const [isRouteAnimating, setIsRouteAnimating] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(
     () => !window.matchMedia("(max-width: 860px)").matches,
   );
@@ -112,6 +113,7 @@ export default function App() {
   const handleReturnToLanding = useCallback(() => {
     clearIdleTimers();
     setHasStarted(false);
+    setIsRouteAnimating(false);
     setIsIdleWarningVisible(false);
     setIdleCountdownSeconds(IDLE_RETURN_SECONDS);
     setIsTutorialVisible(false);
@@ -124,7 +126,7 @@ export default function App() {
   const restartIdleTimers = useCallback(() => {
     clearIdleTimers();
 
-    if (!hasStarted) {
+    if (!hasStarted || isRouteAnimating) {
       return;
     }
 
@@ -141,10 +143,10 @@ export default function App() {
         IDLE_RETURN_MS,
       );
     }, IDLE_WARNING_MS);
-  }, [clearIdleTimers, handleReturnToLanding, hasStarted]);
+  }, [clearIdleTimers, handleReturnToLanding, hasStarted, isRouteAnimating]);
 
   useEffect(() => {
-    if (!hasStarted) {
+    if (!hasStarted || isRouteAnimating) {
       clearIdleTimers();
       setIsIdleWarningVisible(false);
       return undefined;
@@ -163,7 +165,7 @@ export default function App() {
       });
       clearIdleTimers();
     };
-  }, [clearIdleTimers, hasStarted, restartIdleTimers]);
+  }, [clearIdleTimers, hasStarted, isRouteAnimating, restartIdleTimers]);
 
   const filteredOffices = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -212,6 +214,7 @@ export default function App() {
   }, [floors, offices]);
 
   const handleNavigationStatus = useCallback((result) => {
+    setIsRouteAnimating(result.status === "working");
     setNavigationMessage(
       result.status === "unavailable"
         ? "No route available to this office."

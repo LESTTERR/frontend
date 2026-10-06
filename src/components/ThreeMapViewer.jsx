@@ -2466,6 +2466,13 @@ export default function ThreeMapViewer({
       return;
     }
 
+    if (!routeGroup.userData.isComplete) {
+      onNavigationStatusRef.current?.({
+        status: "stopped",
+        officeName: routeGroup.userData.destinationOffice?.name || "",
+        reason: "",
+      });
+    }
     routeGroup.parent?.remove(routeGroup);
     disposeObject(routeGroup);
     routeGroupRef.current = null;
@@ -2733,6 +2740,11 @@ export default function ThreeMapViewer({
 
     if (progress >= 1 && !routeGroup.userData.isComplete) {
       routeGroup.userData.isComplete = true;
+      onNavigationStatusRef.current?.({
+        status: "complete",
+        officeName: routeGroup.userData.destinationOffice?.name || "",
+        reason: "",
+      });
       routeGroup.children.forEach((child) => {
         if (child.userData.isAnimatedRouteSegment) {
           child.visible = true;
@@ -2846,7 +2858,7 @@ export default function ThreeMapViewer({
       mountRef.current.dataset.routeNodeCount = String(route.points.length);
     }
     onNavigationStatusRef.current?.({
-      status: "ready",
+      status: "working",
       officeName: office?.name || "",
       reason: "",
     });
