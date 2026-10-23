@@ -16,6 +16,7 @@
   --green: #238b67;
   --green-strong: #176f53;
   --green-soft: #e7f7ef;
+  --brand-color: var(--green);
   --gold: #c7932f;
   --red: #b94d44;
   --sky: #4f7ea8;
@@ -554,7 +555,7 @@ button {
   border: 1px solid rgba(35, 139, 103, 0.18);
   border-radius: 14px;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
   font-weight: 900;
   box-shadow: 0 18px 38px rgba(35, 139, 103, 0.24);
 }
@@ -1360,7 +1361,7 @@ button {
 
 .sidebar-brand-panel,
 .sidebar-search-panel {
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 .sidebar-brand-panel {
@@ -1535,7 +1536,7 @@ button {
   width: 3px;
   height: 20px;
   border-radius: 999px;
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 .home-shell .office-list {
@@ -1571,7 +1572,7 @@ button {
   place-items: center;
   border: 1px solid #cfe3d9;
   border-radius: 12px;
-  color: var(--green);
+  color: var(--brand-color);
   background: #eef8f3;
 }
 
@@ -1597,7 +1598,7 @@ button {
   padding: 3px 8px;
   border: 1px solid #cfe3d9;
   border-radius: 999px;
-  color: var(--green);
+  color: var(--brand-color);
   background: #eef8f3;
   font-size: 0.74rem;
   font-weight: 900;
@@ -1609,7 +1610,7 @@ button {
 
 .home-shell .office-card.active {
   border-color: var(--green-strong);
-  background: linear-gradient(104deg, var(--green) 0%, var(--green-strong) 100%);
+  background: linear-gradient(104deg, var(--brand-color) 0%, var(--green-strong) 100%);
   box-shadow: 0 4px 18px rgba(20, 107, 79, 0.3);
 }
 
@@ -2440,7 +2441,7 @@ button {
   gap: 6px;
   padding: 7px 14px;
   border-radius: 8px;
-  background: #238b67;
+  background: var(--brand-color);
   color: #ffffff;
   font-size: 0.84rem;
   font-weight: 600;
@@ -2621,7 +2622,7 @@ button {
 }
 
 .admin-nav-item.active .admin-nav-badge {
-  background: var(--green);
+  background: var(--brand-color);
   color: #ffffff;
 }
 
@@ -2982,7 +2983,7 @@ button {
 
 .floor-dist-bar {
   height: 100%;
-  background: linear-gradient(90deg, #238b67, #34d399);
+  background: linear-gradient(90deg, var(--brand-color), #34d399);
   border-radius: 999px;
 }
 
@@ -3010,7 +3011,7 @@ button {
 }
 
 .admin-btn-primary {
-  background: var(--green);
+  background: var(--brand-color);
   color: #ffffff;
 }
 

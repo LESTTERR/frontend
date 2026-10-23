@@ -10,7 +10,6 @@ export default function LandingScreen({
   title = "City Hall Navigator",
   kicker,
   tagline,
-  brandColor = "#238b67",
   phone,
   email,
   website,
@@ -18,8 +17,7 @@ export default function LandingScreen({
   onStart,
   t,
 }) {
-  const startStyle = { backgroundColor: brandColor };
-  const contactLabelStyle = { color: brandColor };
+  const contactLabelStyle = { color: "var(--brand-color)" };
   return (
     <main
       className="landing"
@@ -54,7 +52,6 @@ export default function LandingScreen({
         <button
           className="start-prompt"
           type="button"
-          style={startStyle}
           onClick={(event) => {
             event.stopPropagation();
             onStart();

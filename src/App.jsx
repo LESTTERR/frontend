@@ -68,6 +68,14 @@ export default function App() {
   } = useNavigatorConfig();
   const [language, setLanguage] = useState(getSavedLanguage);
   const t = useMemo(() => getTranslator(language), [language]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--brand-color",
+      config.brandColor || "#238b67",
+    );
+  }, [config.brandColor]);
+
   const [accessibilityMode, setAccessibilityMode] = useState(false);
   const floors = config.floors || [];
   const enabledFloorIds = new Set(
@@ -342,7 +350,6 @@ export default function App() {
             cityName={cityName}
             title={config.navigatorTitle}
             logoUrl={resolvedLogoUrl}
-            brandColor={config.brandColor || "#238b67"}
             language={language}
             t={t}
           />

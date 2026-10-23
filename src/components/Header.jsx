@@ -38,7 +38,6 @@ export default function Header({
   cityName,
   title = "City Hall Navigator",
   logoUrl = "",
-  brandColor = "#238b67",
   language,
   t,
 }) {
@@ -126,9 +125,7 @@ export default function Header({
           <img src={logoUrl || "/pic/GAPO%20SEAL%20copy.png"} alt="" />
         </span>
         <div>
-          <p className="brand-label" style={{ color: brandColor }}>
-            {cityName}
-          </p>
+          <p className="brand-label">{cityName}</p>
           <h1>{title}</h1>
         </div>
       </div>
