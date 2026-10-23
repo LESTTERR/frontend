@@ -2379,7 +2379,7 @@ button {
 /* ----------------- Topbar ----------------- */
 .admin-topbar {
   height: 64px;
-  background: linear-gradient(90deg, #124e3b, #19634b);
+  background: var(--brand-color);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -2416,7 +2416,7 @@ button {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #a7f3d0;
+  color: rgba(255, 255, 255, 0.9);
   font-weight: 700;
 }
 
@@ -2432,7 +2432,7 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #d1fae5;
+  color: rgba(255, 255, 255, 0.95);
   background: rgba(0, 0, 0, 0.16);
   padding: 6px 14px;
   border-radius: 999px;
@@ -2459,7 +2459,7 @@ button {
 }
 
 .admin-topbar-kiosk-btn:hover {
-  background: #2cb384;
+  background: var(--brand-color);
   transform: translateY(-1px);
 }
 
