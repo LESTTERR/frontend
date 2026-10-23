@@ -1,0 +1,51 @@
+import js from "@eslint/js";
+
+export default [
+  js.configs.recommended,
+  {
+    files: ["**/*.{js,jsx}"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        navigator: "readonly",
+        localStorage: "readonly",
+        sessionStorage: "readonly",
+        indexedDB: "readonly",
+        crypto: "readonly",
+        URL: "readonly",
+        console: "readonly",
+        performance: "readonly",
+        ResizeObserver: "readonly",
+        CustomEvent: "readonly",
+        TextEncoder: "readonly",
+        TextDecoder: "readonly",
+        DataView: "readonly",
+        Uint8Array: "readonly",
+        ArrayBuffer: "readonly",
+        requestAnimationFrame: "readonly",
+        cancelAnimationFrame: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        matchMedia: "readonly",
+        Node: "readonly",
+        Event: "readonly",
+        PointerEvent: "readonly",
+        TouchEvent: "readonly",
+        Blob: "readonly",
+        File: "readonly",
+        FormData: "readonly",
+      },
+    },
+  },
+  {
+    ignores: ["dist/**", "node_modules/**", ".kilo/**", ".codex/**", "vercel-csp-draft.txt"],
+  },
+];

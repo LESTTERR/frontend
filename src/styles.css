@@ -231,8 +231,7 @@ button {
   min-height: 100vh;
   background:
     linear-gradient(135deg, rgba(35, 139, 103, 0.12), transparent 36%),
-    linear-gradient(225deg, rgba(199, 147, 47, 0.15), transparent 38%),
-    #ddec00;
+    linear-gradient(225deg, rgba(199, 147, 47, 0.15), transparent 38%);
 }
 
 .topbar {
@@ -5278,5 +5277,203 @@ button {
 @media (max-width: 700px) {
   .admin-floor-editor .admin-floor-edit-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.language-toggle {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.language-toggle button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.language-toggle button.active {
+  color: var(--green-strong);
+  background: #fff;
+}
+
+.home-shell .toolbar-language-toggle {
+  flex: 0 1 auto;
+  pointer-events: auto;
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 5px 16px rgba(32, 66, 54, 0.11);
+  backdrop-filter: blur(12px);
+}
+
+.home-shell .accessibility-toggle {
+  max-width: 190px;
+  white-space: normal;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.home-shell .accessibility-toggle.active {
+  border-color: #176f53;
+  color: #fff;
+  background: #176f53;
+}
+
+.accessibility-indicator {
+  position: absolute;
+  z-index: 11;
+  top: 70px;
+  left: 16px;
+  max-width: min(420px, calc(100% - 32px));
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid #9bcdb4;
+  border-radius: 8px;
+  color: #14583f;
+  background: rgba(236, 253, 245, 0.96);
+  box-shadow: 0 4px 14px rgba(24, 48, 47, 0.12);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.home-shell .map-action-group,
+.home-shell .map-chip-group {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.home-shell .map-action-group {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+}
+
+.home-shell .map-chip,
+.home-shell .tool-button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.home-shell .map-action-group > .tool-button:not(.primary) {
+  height: 42px;
+  min-height: 42px;
+  align-self: flex-start;
+}
+
+.home-shell .map-action-group > .tool-button.accessibility-toggle:not(.primary) {
+  height: 42px;
+  min-height: 42px;
+}
+
+.home-shell .map-action-group > .toolbar-language-toggle {
+  height: 42px;
+  min-height: 42px;
+  align-self: flex-start;
+}
+
+@media (max-width: 860px) {
+  .home-shell .map-toolbar {
+    align-items: flex-start;
+  }
+
+  .home-shell .map-action-group {
+    max-width: min(72%, 520px);
+    gap: 5px;
+  }
+
+  .home-shell .map-action-group .tool-button.accessibility-toggle:not(.primary) {
+    width: auto;
+    max-width: 150px;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  .home-shell .toolbar-language-toggle button {
+    min-height: 34px;
+    padding: 5px 7px;
+    font-size: 0.72rem;
+  }
+
+  .accessibility-indicator {
+    top: 112px;
+    left: 12px;
+  }
+
+  .navigation-feedback + .accessibility-indicator {
+    top: 160px;
+  }
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    height: auto;
+    min-height: 78px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+
+  .clock-group {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 5px;
+  }
+
+  .clock-item {
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  .home-shell .map-action-group {
+    max-width: calc(100% - 8px);
+    gap: 4px;
+  }
+
+  .home-shell .map-action-group .tool-button.accessibility-toggle:not(.primary) {
+    max-width: 118px;
+    font-size: 0.68rem;
+  }
+
+  .home-shell .map-action-group .tool-button:not(.primary) {
+    width: auto;
+    min-width: 34px;
+    padding: 6px;
+  }
+
+  .home-shell .toolbar-language-toggle button {
+    padding-inline: 6px;
+    font-size: 0.68rem;
+  }
+
+  .accessibility-indicator {
+    top: 154px;
+    left: 10px;
+    max-width: calc(100% - 20px);
+    font-size: 0.74rem;
+  }
+
+  .navigation-feedback + .accessibility-indicator {
+    top: 212px;
   }
 }
