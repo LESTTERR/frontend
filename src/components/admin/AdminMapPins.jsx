@@ -9,14 +9,7 @@ import {
 import useNavigatorConfig from "../../hooks/useNavigatorConfig.js";
 
 const ThreeMapViewer = lazy(() => import("../ThreeMapViewer.jsx"));
-const NODE_TYPES = [
-  "office",
-  "entrance",
-  "kiosk",
-  "stairs",
-  "elevator",
-  "waypoint",
-];
+const NODE_TYPES = ["waypoint", "office", "entrance"];
 
 export default function AdminMapPins() {
   const { config, resolvedModelPaths } = useNavigatorConfig();
