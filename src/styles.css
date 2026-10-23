@@ -13,8 +13,8 @@
   --line: #d8e3dd;
   --paper: #ffffff;
   --soft: #eef5f1;
-  --green: #238b67;
-  --green-strong: #176f53;
+  --green: var(--brand-color);
+  --green-strong: var(--brand-color);
   --green-soft: #e7f7ef;
   --brand-color: #238b67;
   --gold: #c7932f;
@@ -135,14 +135,14 @@
 
 .admin-waypoint-floor-controls button:hover {
   border-color: #83b79b;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: var(--green-soft);
 }
 
 .admin-waypoint-floor-controls button[aria-pressed="true"] {
-  border-color: var(--green-strong);
+  border-color: var(--brand-color);
   color: #fff;
-  background: var(--green-strong);
+  background: var(--brand-color);
 }
 
 .admin-waypoint-floor-controls button:disabled {
@@ -396,7 +396,7 @@ button {
   place-items: center;
   border: 1px solid #dbe7e1;
   border-radius: 10px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: #f8fafc;
 }
 
@@ -438,7 +438,7 @@ button {
 }
 
 .calendar-day.today {
-  border-color: var(--green-strong);
+  border-color: var(--brand-color);
   color: white;
   background: var(--brand-color);
   box-shadow: 0 8px 18px rgba(35, 139, 103, 0.24);
@@ -513,7 +513,7 @@ button {
   padding: 9px 13px;
   border: 1px solid rgba(35, 139, 103, 0.24);
   border-radius: 999px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: rgba(255, 255, 255, 0.72);
   font-weight: 800;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
@@ -562,7 +562,7 @@ button {
 
 .start-prompt:hover {
   color: white;
-  background: var(--green-strong);
+  background: var(--brand-color);
 }
 
 .landing-quick-info {
@@ -890,7 +890,7 @@ button {
   padding: 16px;
   border: 2px solid rgba(20, 107, 79, 0.24);
   border-radius: 8px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: rgba(255, 255, 255, 0.85);
   font-weight: 900;
   text-align: center;
@@ -1609,8 +1609,8 @@ button {
 }
 
 .home-shell .office-card.active {
-  border-color: var(--green-strong);
-  background: linear-gradient(104deg, var(--brand-color) 0%, var(--green-strong) 100%);
+  border-color: var(--brand-color);
+  background: linear-gradient(104deg, var(--brand-color) 0%, var(--brand-color) 100%);
   box-shadow: 0 4px 18px rgba(20, 107, 79, 0.3);
 }
 
@@ -1936,9 +1936,9 @@ button {
 }
 
 .floor-switcher button.active {
-  border-color: var(--green-strong);
+  border-color: var(--brand-color);
   color: white;
-  background: linear-gradient(125deg, var(--brand-color) 0%, var(--green-strong) 100%);
+  background: linear-gradient(125deg, var(--brand-color) 0%, var(--brand-color) 100%);
   box-shadow: 0 2px 8px rgba(35, 139, 103, 0.34);
 }
 
@@ -2012,7 +2012,7 @@ button {
   gap: 8px;
   padding: 8px 11px;
   border-radius: 999px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: var(--green-soft);
   font-size: 0.78rem;
   font-weight: 900;
@@ -2092,7 +2092,7 @@ button {
 }
 
 .tutorial-primary:hover {
-  background: var(--green-strong);
+  background: var(--brand-color);
 }
 
 .idle-warning {
@@ -2131,7 +2131,7 @@ button {
 }
 
 .idle-warning-panel strong {
-  color: var(--green-strong);
+  color: var(--brand-color);
   font-size: clamp(1.5rem, 4vw, 2rem);
   line-height: 1.05;
 }
@@ -2143,7 +2143,7 @@ button {
   place-items: center;
   padding: 10px;
   border-radius: 50%;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background:
     radial-gradient(circle at center, white 0 57%, transparent 58%),
     conic-gradient(var(--gold) var(--idle-progress), #e2e8f0 0);
@@ -2507,7 +2507,7 @@ button {
   height: 40px;
   border-radius: 10px;
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   display: grid;
   place-items: center;
 }
@@ -2569,12 +2569,12 @@ button {
 
 .admin-nav-item:hover {
   background: var(--soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 .admin-nav-item.active {
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   border-color: rgba(35, 139, 103, 0.25);
   font-weight: 700;
 }
@@ -2608,7 +2608,7 @@ button {
 }
 
 .admin-nav-item.active .admin-nav-sub {
-  color: var(--green-strong);
+  color: var(--brand-color);
   opacity: 0.85;
 }
 
@@ -2962,7 +2962,7 @@ button {
   font-size: 0.72rem;
   font-weight: 800;
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   padding: 2px 6px;
   border-radius: 6px;
 }
@@ -3016,7 +3016,7 @@ button {
 }
 
 .admin-btn-primary:hover {
-  background: var(--green-strong);
+  background: var(--brand-color);
 }
 
 .admin-btn-secondary {
@@ -3076,7 +3076,7 @@ button {
 .admin-icon-btn.primary:hover {
   background: var(--green-soft);
   border-color: var(--brand-color);
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 .admin-icon-btn.danger:hover {
@@ -3357,7 +3357,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 .admin-modal-title h3 {
@@ -3698,7 +3698,7 @@ button {
 
 .admin-upload-droparea:hover .admin-upload-icon-wrap {
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 .admin-upload-droparea strong {
@@ -3736,7 +3736,7 @@ button {
 }
 
 .admin-model-file-icon {
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 .admin-model-file-info {
@@ -3779,7 +3779,7 @@ button {
   padding: 6px 12px;
   border-radius: 8px;
   background: var(--soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   font-size: 0.8rem;
   font-weight: 800;
   flex-shrink: 0;
@@ -4157,7 +4157,7 @@ button {
 }
 
 .admin-guide-icon {
-  color: var(--green-strong);
+  color: var(--brand-color);
   flex-shrink: 0;
 }
 
@@ -4206,7 +4206,7 @@ button {
 .admin-detail-value.highlight {
   font-size: 1.15rem;
   font-weight: 800;
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 /* Mockup preview */
@@ -4262,7 +4262,7 @@ button {
 
 .admin-mockup-landing-preview {
   padding: 32px 24px;
-  background: linear-gradient(135deg, #18302f, #238b67);
+  background: linear-gradient(135deg, #18302f, var(--brand-color));
   color: #ffffff;
   text-align: center;
 }
@@ -4297,7 +4297,7 @@ button {
   padding: 8px 18px;
   border-radius: 999px;
   background: #ffffff;
-  color: var(--green-strong);
+  color: var(--brand-color);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -4328,7 +4328,7 @@ button {
   height: 56px;
   border-radius: 16px;
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   display: grid;
   place-items: center;
   margin: 0 auto 16px;
@@ -4359,7 +4359,7 @@ button {
   padding: 4px 12px;
   border-radius: 999px;
   background: var(--green-soft);
-  color: var(--green-strong);
+  color: var(--brand-color);
   font-size: 0.76rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -4414,7 +4414,7 @@ button {
 }
 
 .admin-login-btn:hover {
-  background: var(--green-strong);
+  background: var(--brand-color);
 }
 
 .admin-password-input-wrap {
@@ -4465,7 +4465,7 @@ button {
   background: #f1f5f9;
   padding: 1px 5px;
   border-radius: 4px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   font-weight: 700;
 }
 
@@ -4488,7 +4488,7 @@ button {
 }
 
 .admin-login-back-link:hover {
-  color: var(--green-strong);
+  color: var(--brand-color);
 }
 
 /* ----------------- Responsive Media Queries ----------------- */
@@ -4563,7 +4563,7 @@ button {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: var(--green-soft);
 }
 
@@ -4659,12 +4659,12 @@ button {
 .home-shell .office-card.active {
   border-color: #6da98a;
   background: #eef7f1;
-  box-shadow: inset 3px 0 #238b67;
+  box-shadow: inset 3px 0 var(--brand-color);
 }
 
 .home-shell .office-card.active .office-card-icon {
   border-color: #c8e2d2;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: #fff;
 }
 
@@ -4675,7 +4675,7 @@ button {
 
 .home-shell .office-card.active .office-floor-pill {
   border-color: #c8e2d2;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: #fff;
 }
 
@@ -4722,9 +4722,9 @@ button {
 }
 
 .home-shell .tool-button.primary {
-  border-color: var(--green-strong);
+  border-color: var(--brand-color);
   color: #fff;
-  background: var(--green-strong);
+  background: var(--brand-color);
   box-shadow: 0 5px 16px rgba(23, 111, 83, 0.2);
 }
 
@@ -4784,15 +4784,15 @@ button {
 }
 
 .home-shell .floor-switcher button.active {
-  border-color: var(--green-strong);
-  background: var(--green-strong);
+  border-color: var(--brand-color);
+  background: var(--brand-color);
   box-shadow: none;
 }
 
 .home-shell .floor-switcher button:not(.active):hover,
 .home-shell .map-zoom-controls button:hover {
   border-color: #9ac5af;
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: #f0f8f3;
 }
 
@@ -4979,14 +4979,14 @@ button {
 
   .admin-waypoint-floor-controls button:hover {
     border-color: #83b79b;
-    color: var(--green-strong);
+    color: var(--brand-color);
     background: var(--green-soft);
   }
 
   .admin-waypoint-floor-controls button[aria-pressed="true"] {
-    border-color: var(--green-strong);
+    border-color: var(--brand-color);
     color: #fff;
-    background: var(--green-strong);
+    background: var(--brand-color);
   }
 
   .admin-waypoint-viewer .three-viewer {
@@ -5002,7 +5002,7 @@ button {
   }
 
   .admin-waypoint-viewer .viewer-status {
-    color: var(--green-strong);
+    color: var(--brand-color);
   }
 
   .admin-waypoint-viewer + .admin-card-body .admin-coord-view-pill label {
@@ -5152,7 +5152,7 @@ button {
   padding: 8px 12px;
   overflow: visible;
   clip: auto;
-  border: 2px solid var(--green-strong);
+  border: 2px solid var(--brand-color);
   border-radius: 6px;
   background: #fff;
 }
@@ -5310,7 +5310,7 @@ button {
 }
 
 .language-toggle button.active {
-  color: var(--green-strong);
+  color: var(--brand-color);
   background: #fff;
 }
 
@@ -5331,9 +5331,9 @@ button {
 }
 
 .home-shell .accessibility-toggle.active {
-  border-color: #176f53;
+  border-color: var(--brand-color);
   color: #fff;
-  background: #176f53;
+  background: var(--brand-color);
 }
 
 .accessibility-indicator {
