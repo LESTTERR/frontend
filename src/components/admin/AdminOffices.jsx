@@ -14,6 +14,7 @@ export default function AdminOffices() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
   const [isAdding, setIsAdding] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("");
 
   useEffect(() => {
     const handler = () => setConfig(loadNavigatorConfig());
@@ -132,6 +133,10 @@ export default function AdminOffices() {
           </button>
         </div>
       </div>
+
+      {validationMessage ? (
+        <p className="admin-form-feedback" role="alert">{validationMessage}</p>
+      ) : null}
 
       <div className="admin-card">
         <div className="admin-card-header">
