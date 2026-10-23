@@ -387,7 +387,7 @@ export default function AdminMapPins() {
                         <td>
                           <select
                             className="admin-node-name-input"
-                            value={form.type || "corridor"}
+                            value={form.type || "waypoint"}
                             onChange={(e) => updateField("type", e.target.value)}
                           >
                             {NODE_TYPES.map((t) => (

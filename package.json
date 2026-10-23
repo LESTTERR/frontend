@@ -21,7 +21,6 @@
     "vite": "^6.0.5"
   },
   "description": "Front-end version for the Olongapo City Hall 3D map and office pathfinding system.",
-  "main": "vite.config.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LESTTERR/frontend.git"

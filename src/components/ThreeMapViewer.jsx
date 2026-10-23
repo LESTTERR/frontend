@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import {
   defaultFloors,
   defaultModelPaths,
   defaultOffices,
 } from "../data/navigatorDefaults.js";
 import { findWaypointRoute } from "../services/pathfinding.js";
+import { cloneModelScene, loadModelAsset } from "../services/modelAsset.js";
 
 const DEFAULT_MODEL_PATHS = defaultModelPaths;
 const DEFAULT_MAP_POSITION = { x: 50, y: 50 };
@@ -1629,29 +1629,26 @@ function getFrontDirection(bounds, nodePositions) {
   return frontDirection;
 }
 
-function getFrontOverviewView(bounds, nodePositions) {
+function getFrontOverviewView(bounds, nodePositions, aspect = 1) {
   const center = bounds.getCenter(new THREE.Vector3());
-  const size = bounds.getSize(new THREE.Vector3());
-  const largestSide = Math.max(size.x, size.y, size.z) || 7;
-  const entryPosition =
-    nodePositions.get("route-start") ??
-    center.clone().add(new THREE.Vector3(0, 0, size.z * 0.5));
+  const boundingSphere = bounds.getBoundingSphere(new THREE.Sphere());
   const frontDirection = getFrontDirection(bounds, nodePositions);
-
-  // Target: entrance-level slightly right, low-ish so camera looks down at building
-  const target = center.clone();
-  target.x += size.x * 0.10;       // nudge right toward entrance
-  target.y = bounds.min.y + size.y * 0.30; // look at lower third (entrance area)
-
-  // Camera: close (0.30× of building), high up (1.2× full height above bottom)
-  // gives the elevated bird's-eye-from-front look
-  const cameraPosition = entryPosition
+  const verticalFov = THREE.MathUtils.degToRad(50);
+  const horizontalFov =
+    2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(aspect, 0.1));
+  const limitingFov = Math.min(verticalFov, horizontalFov);
+  const distance =
+    (boundingSphere.radius / Math.sin(limitingFov / 2)) * 0.58;
+  const elevation = THREE.MathUtils.degToRad(28);
+  const cameraDirection = frontDirection
+    .multiplyScalar(Math.cos(elevation))
+    .setY(Math.sin(elevation))
+    .normalize();
+  const cameraPosition = center
     .clone()
-    .add(frontDirection.multiplyScalar(largestSide * 0.30));
-  cameraPosition.x += size.x * 0.12;           // shift right
-  cameraPosition.y = bounds.min.y + size.y * 1.25; // well above the roof
+    .add(cameraDirection.multiplyScalar(distance));
 
-  return { target, cameraPosition };
+  return { target: center, cameraPosition };
 }
 
 function getFloorModelBounds(floorNumber, floorMetadata, fallbackBounds) {
@@ -1800,6 +1797,13 @@ function easeInOutCubic(progress) {
   return progress < 0.5
     ? 4 * progress * progress * progress
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+}
+
+function lockCameraAzimuth(camera, controls) {
+  const offset = camera.position.clone().sub(controls.target);
+  const azimuth = Math.atan2(offset.x, offset.z);
+  controls.minAzimuthAngle = azimuth;
+  controls.maxAzimuthAngle = azimuth;
 }
 
 function disposeObject(object) {
@@ -2043,8 +2047,14 @@ export default function ThreeMapViewer({
   onWaypointPositionChange,
   showNavigationDebug = false,
   showOfficeLabels = true,
+  accessibilityMode = false,
+  lockCameraRotation = !waypointEditMode,
+  optimizeForKiosk = false,
+  t = (key) => key,
 }) {
   const mountRef = useRef(null);
+  const renderSceneRef = useRef(null);
+  const scheduleViewerFrameRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const controlsRef = useRef(null);
@@ -2064,6 +2074,8 @@ export default function ThreeMapViewer({
   const routeSequenceRunRef = useRef(0);
   const routeFollowOffsetRef = useRef(null);
   const isRouteFollowingRef = useRef(false);
+  const accessibilityModeRef = useRef(accessibilityMode);
+  const lockCameraRotationRef = useRef(lockCameraRotation);
   const waypointMarkerGroupRef = useRef(null);
   const waypointMarkersRef = useRef(new Map());
   const pathNodesRef = useRef(pathNodes);
@@ -2088,6 +2100,8 @@ export default function ThreeMapViewer({
   const onRouteFloorChangeRef = useRef(onRouteFloorChange);
   const onSelectOfficeRef = useRef(onSelectOffice);
   const selectedOfficeRef = useRef(selectedOffice);
+  accessibilityModeRef.current = accessibilityMode;
+  lockCameraRotationRef.current = lockCameraRotation;
   const viewCommandRef = useRef(viewCommand);
   viewCommandRef.current = viewCommand;
   const nodeFloorsRef = useRef(new Map());
@@ -2152,7 +2166,11 @@ export default function ThreeMapViewer({
     if (instant) {
       camera.position.copy(cameraPosition);
       controls.target.copy(target);
+      if (lockCameraRotationRef.current) {
+        lockCameraAzimuth(camera, controls);
+      }
       controls.update();
+      renderSceneRef.current?.();
       return;
     }
 
@@ -2167,7 +2185,11 @@ export default function ThreeMapViewer({
 
       camera.position.lerpVectors(startPosition, cameraPosition, easedProgress);
       controls.target.lerpVectors(startTarget, target, easedProgress);
+      if (lockCameraRotationRef.current) {
+        lockCameraAzimuth(camera, controls);
+      }
       controls.update();
+      renderSceneRef.current?.();
 
       if (progress < 1) {
         focusAnimationRef.current = window.requestAnimationFrame(step);
@@ -2446,6 +2468,7 @@ export default function ThreeMapViewer({
     const { target, cameraPosition } = getFrontOverviewView(
       bounds,
       nodePositionsRef.current,
+      cameraRef.current?.aspect ?? 1,
     );
 
     disposeRouteGroup();
@@ -2793,6 +2816,7 @@ export default function ThreeMapViewer({
       floors: floorsRef.current,
       startNodeId: startNodeIdRef.current,
       destinationNodeId: destinationNode.id,
+      accessibleMode: accessibilityModeRef.current,
     });
 
     if (result.error || result.nodes.length < 2) {
@@ -2815,6 +2839,7 @@ export default function ThreeMapViewer({
   function enterRouteForOffice(office, instant = false) {
     clearRouteSequenceTimers();
     disposeRouteGroup();
+    renderSceneRef.current?.();
     isRouteFollowingRef.current = false;
     routeFollowOffsetRef.current = null;
 
@@ -2840,6 +2865,7 @@ export default function ThreeMapViewer({
     currentRouteFloorRef.current = startFloor;
     notifyRouteFloorChange(startFloor);
     createRouteGroup(route.points, route.floors, office);
+    scheduleViewerFrameRef.current?.();
     const bounds = modelBoundsRef.current;
     if (bounds && route.points[0]) {
       const start = route.points[0];
@@ -3044,24 +3070,32 @@ export default function ThreeMapViewer({
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      preserveDrawingBuffer: true,
+      antialias: !optimizeForKiosk,
+      preserveDrawingBuffer: !optimizeForKiosk,
       powerPreference: "high-performance",
     });
     renderer.setClearColor(skyBlue, 1);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, optimizeForKiosk ? 1 : 1.5),
+    );
+    renderer.shadowMap.enabled = !optimizeForKiosk;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mountElement.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
+    controls.enableRotate = !lockCameraRotationRef.current;
+    controls.enablePan = !lockCameraRotationRef.current;
+    controls.enableZoom = true;
     controls.minDistance = 0.75;
     controls.maxDistance = 55;
     controls.panSpeed = 0.75;
     controls.rotateSpeed = 0.7;
     controls.target.set(0, 0, 0);
+    if (lockCameraRotationRef.current) {
+      lockCameraAzimuth(camera, controls);
+    }
     controlsRef.current = controls;
 
     const focusMarker = new THREE.Group();
@@ -3174,7 +3208,25 @@ export default function ThreeMapViewer({
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      scheduleViewerFrameRef.current?.();
     }
+
+    function renderScene() {
+      if (mountElement.isConnected) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function scheduleAnimationFrame() {
+      if (!frameId && !document.hidden && mountElement.isConnected) {
+        frameId = window.requestAnimationFrame(animate);
+      }
+    }
+
+    renderSceneRef.current = renderScene;
+    scheduleViewerFrameRef.current = scheduleAnimationFrame;
+    controls.addEventListener("change", scheduleAnimationFrame);
+    controls.addEventListener("start", scheduleAnimationFrame);
 
     function getOfficeIdAtPointer(event) {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -3359,16 +3411,10 @@ export default function ThreeMapViewer({
     renderer.domElement.addEventListener("pointermove", handlePointerMove);
     renderer.domElement.addEventListener("pointerup", handlePointerUp);
 
-    const loader = new GLTFLoader();
-    const loadModel = (sourcePath) =>
-      new Promise((resolve, reject) => {
-        loader.load(
-          sourcePath,
-          (gltf) => resolve({ sourcePath, scene: gltf.scene }),
-          undefined,
-          reject,
-        );
-      });
+    const loadModel = async (sourcePath) => {
+      const gltf = await loadModelAsset(sourcePath);
+      return { sourcePath, scene: cloneModelScene(gltf.scene) };
+    };
 
     Promise.allSettled(activeModelPaths.map(loadModel)).then(
       (results) => {
@@ -3431,7 +3477,7 @@ export default function ThreeMapViewer({
           }
 
           const officeId = getModelOfficeId(child, modelOfficeObjectIds);
-      const office = officesById.get(officeId);
+          const office = officesById.get(officeId);
           if (child.isMesh && office) {
             child.userData = {
               ...child.userData,
@@ -3588,6 +3634,7 @@ export default function ThreeMapViewer({
         setStatus("ready");
         applyViewCommand(viewCommandRef.current, true);
         updateWaypointMarkers();
+        scheduleAnimationFrame();
       },
       (error) => {
         if (isDisposed) {
@@ -3600,24 +3647,25 @@ export default function ThreeMapViewer({
     );
 
     function animate(now = window.performance.now()) {
+      frameId = 0;
       if (document.hidden || !mountElement.isConnected) {
-        frameId = 0;
         return;
       }
 
       updateRouteAnimation(now);
-      clouds.children.forEach((cloud, index) => {
-        cloud.position.x += cloud.userData.drift;
+      const controlsAreMoving = controls.update();
+      renderScene();
 
-        if (cloud.position.x > 15) {
-          cloud.position.x = -15;
-        }
-
-        cloud.position.y += Math.sin(now * 0.00045 + cloud.userData.phase + index) * 0.0007;
-      });
-      controls.update();
-      renderer.render(scene, camera);
-      frameId = window.requestAnimationFrame(animate);
+      const routeGroup = routeGroupRef.current;
+      const routeIsAnimating = routeGroup && !routeGroup.userData.isComplete;
+      if (
+        !optimizeForKiosk ||
+        controlsAreMoving ||
+        routeIsAnimating ||
+        focusAnimationRef.current
+      ) {
+        scheduleAnimationFrame();
+      }
     }
 
     const handleVisibilityChange = () => {
@@ -3629,9 +3677,7 @@ export default function ThreeMapViewer({
         return;
       }
 
-      if (!frameId) {
-        frameId = window.requestAnimationFrame(animate);
-      }
+      scheduleAnimationFrame();
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -3645,6 +3691,8 @@ export default function ThreeMapViewer({
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       resizeObserver.disconnect();
+      controls.removeEventListener("change", scheduleAnimationFrame);
+      controls.removeEventListener("start", scheduleAnimationFrame);
       clearRouteSequenceTimers();
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
       renderer.domElement.removeEventListener("pointermove", handlePointerMove);
@@ -3662,6 +3710,8 @@ export default function ThreeMapViewer({
       sceneRef.current = null;
       cameraRef.current = null;
       controlsRef.current = null;
+      renderSceneRef.current = null;
+      scheduleViewerFrameRef.current = null;
       focusMarkerRef.current = null;
       modelBoundsRef.current = null;
       modelRootRef.current = null;
@@ -3679,10 +3729,10 @@ export default function ThreeMapViewer({
   return (
     <div className="three-viewer" ref={mountRef}>
       {status === "loading" ? (
-        <div className="viewer-status">Loading Olongapo City Hall model...</div>
+        <div className="viewer-status">{t("loadingModel")}</div>
       ) : null}
       {status === "error" ? (
-        <div className="viewer-status error">Unable to load 3D model.</div>
+        <div className="viewer-status error">{t("unableLoadModel")}</div>
       ) : null}
     </div>
   );

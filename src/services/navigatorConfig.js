@@ -99,6 +99,8 @@ function normalizeAdminPin(pin) {
   return String(pin ?? "").trim().replace(/\s+/g, "");
 }
 
+const ADMIN_PIN_SALT = "olongapo.navigator.admin.pin.v1";
+
 async function hashAdminPin(pin) {
   const normalizedPin = normalizeAdminPin(pin);
 
@@ -526,7 +528,6 @@ export function exportNavigatorConfig(config) {
 }
 
 const ADMIN_PIN_CODE_KEY = "olongapo.admin.pin";
-const ADMIN_PIN_SALT = "olongapo.navigator.admin.pin.v1";
 const LEGACY_ADMIN_PIN = "CityHall2026";
 const DEFAULT_ADMIN_PIN = "admin123";
 

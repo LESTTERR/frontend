@@ -37,7 +37,7 @@ export default function AdminDashboard() {
     {
       label: "Map Pins",
       value: String(pathNodes.length),
-      change: `${pathNodes.filter((n) => n.type === "entry").length} entry points`,
+      change: `${pathNodes.filter((n) => n.type === "entrance").length} entry points`,
       icon: MapPinned,
       color: "amber",
     },
