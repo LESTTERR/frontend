@@ -45,7 +45,7 @@ export default function AdminPaths() {
   const [routeStartId, setRouteStartId] = useState(config.startNodeId);
   const [routeDestinationId, setRouteDestinationId] = useState("");
   const [draftRouteId, setDraftRouteId] = useState("");
-  const [nextNodeType, setNextNodeType] = useState("corridor");
+  const [nextNodeType, setNextNodeType] = useState("walk");
   const [draftNodes, setDraftNodes] = useState([]);
   const [isRouteFinished, setIsRouteFinished] = useState(false);
   const [viewerCommand, setViewerCommand] = useState({
@@ -444,10 +444,9 @@ export default function AdminPaths() {
                 onChange={(event) => setNextNodeType(event.target.value)}
                 disabled={!isRouteActive || isRouteFinished}
               >
-                <option value="corridor">Corridor</option>
+                <option value="walk">Walk</option>
                 <option value="stairs">Stair transition</option>
                 <option value="elevator">Elevator transition</option>
-                <option value="waypoint">Waypoint</option>
               </select>
             </label>
           </div>
