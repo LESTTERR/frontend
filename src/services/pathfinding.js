@@ -29,12 +29,21 @@ function hasPosition(position) {
   );
 }
 
-function getValidEdges(nodesById, edges, floors) {
+function getValidEdges(nodesById, edges, floors, accessibleMode) {
   return edges.flatMap((edge) => {
     const from = nodesById.get(edge.from);
     const to = nodesById.get(edge.to);
 
     if (!from || !to || !hasPosition(from.position) || !hasPosition(to.position)) {
+      return [];
+    }
+
+    if (
+      accessibleMode &&
+      (STAIR_NODE_TYPES.has(from.type) ||
+        STAIR_NODE_TYPES.has(to.type) ||
+        edge.type === "stairs")
+    ) {
       return [];
     }
 
@@ -152,6 +161,7 @@ export function findWaypointRoute({
   floors = [],
   startNodeId,
   destinationNodeId,
+  accessibleMode = false,
 }) {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const start = nodesById.get(startNodeId);
@@ -165,23 +175,32 @@ export function findWaypointRoute({
     return { nodes: [], distance: 0, error: "missing-destination" };
   }
 
+  if (
+    accessibleMode &&
+    (STAIR_NODE_TYPES.has(start.type) || STAIR_NODE_TYPES.has(destination.type))
+  ) {
+    return { nodes: [], distance: 0, error: "no-accessible-route" };
+  }
+
   if (start.id === destination.id) {
     return { nodes: [start], distance: 0, error: null };
   }
 
   const adjacency = new Map(nodes.map((node) => [node.id, []]));
-  getValidEdges(nodesById, edges, floors).forEach(({ from, to, bidirectional }) => {
-    const distance = Math.hypot(
-      from.position.x - to.position.x,
-      from.position.y - to.position.y,
-      from.position.z - to.position.z,
-    );
+  getValidEdges(nodesById, edges, floors, accessibleMode).forEach(
+    ({ from, to, bidirectional }) => {
+      const distance = Math.hypot(
+        from.position.x - to.position.x,
+        from.position.y - to.position.y,
+        from.position.z - to.position.z,
+      );
 
-    adjacency.get(from.id).push({ nodeId: to.id, distance });
-    if (bidirectional) {
-      adjacency.get(to.id).push({ nodeId: from.id, distance });
-    }
-  });
+      adjacency.get(from.id).push({ nodeId: to.id, distance });
+      if (bidirectional) {
+        adjacency.get(to.id).push({ nodeId: from.id, distance });
+      }
+    },
+  );
 
   const open = new Set([start.id]);
   const costs = new Map([[start.id, 0]]);
@@ -248,5 +267,9 @@ export function findWaypointRoute({
     });
   }
 
-  return { nodes: [], distance: 0, error: "no-route" };
+  return {
+    nodes: [],
+    distance: 0,
+    error: accessibleMode ? "no-accessible-route" : "no-route",
+  };
 }

@@ -16,24 +16,26 @@ const MapPreview = memo(function MapPreview({
   onRouteFloorChange,
   onNavigationStatus,
   showNavigationDebug = false,
+  accessibilityMode = false,
+  t,
 }) {
   const selectedOffice = offices?.find((office) => office.id === selectedOfficeId) || offices?.[0];
 
   return (
-    <div className="map-preview" aria-label="City hall building map preview">
+    <div className="map-preview" aria-label={t("buildingMap")}>
       <div className="map-floor model-floor">
         <Suspense
           fallback={
             <div className="viewer-status" aria-live="polite">
-              Loading map...
+              {t("loadingMap")}
             </div>
           }
         >
           {modelAssetStatus === "loading" ? (
-            <div className="viewer-status" role="status">Loading saved building model...</div>
+            <div className="viewer-status" role="status">{t("loadingSavedModel")}</div>
           ) : modelAssetStatus === "missing" ? (
             <div className="viewer-status error" role="alert">
-              Saved building model is missing. Re-upload it in Organization Settings.
+              {t("missingModel")}
             </div>
           ) : (
             <ThreeMapViewer
@@ -50,14 +52,17 @@ const MapPreview = memo(function MapPreview({
               onNavigationStatus={onNavigationStatus}
               showNavigationDebug={showNavigationDebug}
               showOfficeLabels={true}
+              accessibilityMode={accessibilityMode}
+              optimizeForKiosk
+              t={t}
             />
           )}
         </Suspense>
       </div>
 
       <div className="map-caption">
-        <span>Live 3D Route</span>
-        <strong>Choose an office to draw the route inside the model.</strong>
+        <span>{t("liveRoute")}</span>
+        <strong>{t("chooseOffice")}</strong>
       </div>
     </div>
   );

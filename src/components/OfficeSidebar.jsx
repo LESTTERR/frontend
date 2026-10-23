@@ -18,9 +18,11 @@ export default function OfficeSidebar({
   onSearchChange,
   onSelectOffice,
   onHideSidebar,
+  formatFloor,
+  t,
 }) {
   return (
-    <aside className="sidebar" aria-label="Office search">
+    <aside className="sidebar" aria-label={t("searchOffice")}>
       <div className="sidebar-brand-panel">
         <div className="sidebar-brand-row">
           <div className="sidebar-brand-lockup">
@@ -36,8 +38,8 @@ export default function OfficeSidebar({
             className="sidebar-hide-button"
             type="button"
             onClick={onHideSidebar}
-            aria-label="Hide office search sidebar"
-            title="Hide sidebar"
+            aria-label={t("hideSearch")}
+            title={t("hideSidebar")}
           >
             <PanelLeftClose size={18} aria-hidden="true" />
           </button>
@@ -47,7 +49,7 @@ export default function OfficeSidebar({
       <div className="sidebar-search-panel">
         <div className="sidebar-search-heading">
           <Search size={16} aria-hidden="true" />
-          <span>Search</span>
+          <span>{t("search")}</span>
         </div>
 
         <label className="search-box" htmlFor="office-search">
@@ -56,7 +58,7 @@ export default function OfficeSidebar({
             id="office-search"
             type="search"
             value={searchTerm}
-            placeholder="Find an office or department..."
+            placeholder={t("findOffice")}
             onChange={(event) => onSearchChange(event.target.value)}
           />
           {searchTerm ? (
@@ -64,7 +66,7 @@ export default function OfficeSidebar({
               className="clear-search"
               type="button"
               onClick={() => onSearchChange("")}
-              aria-label="Clear search"
+              aria-label={t("clearSearch")}
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -78,18 +80,18 @@ export default function OfficeSidebar({
             <Navigation size={18} />
           </span>
           <div>
-            <strong>Navigating to</strong>
+            <strong>{t("navigatingTo")}</strong>
             <span>
-              {selectedOffice.name} - {selectedOffice.floor} - {selectedOffice.room}
+              {selectedOffice.name} - {formatFloor(selectedOffice.floor)} - {selectedOffice.room}
             </span>
           </div>
-          <em>Active</em>
+          <em>{t("active")}</em>
         </div>
       ) : null}
 
       <div className="office-section-heading">
         <span />
-        <strong>{searchTerm ? "Search Results" : "All Offices"}</strong>
+        <strong>{searchTerm ? t("searchResults") : t("allOffices")}</strong>
       </div>
 
       <div className="office-list" role="list">
@@ -114,7 +116,7 @@ export default function OfficeSidebar({
                 <strong>{office.name}</strong>
                 <span className="office-floor-pill">
                   <Layers size={14} aria-hidden="true" />
-                  {office.floor}
+                  {formatFloor(office.floor)}
                 </span>
               </span>
               <ChevronRight className="office-card-arrow" size={18} aria-hidden="true" />
@@ -122,8 +124,8 @@ export default function OfficeSidebar({
           ))
         ) : (
           <div className="empty-state">
-            <strong>No office found</strong>
-            <span>Try searching for Mayor, Treasurer, permit, or health.</span>
+            <strong>{t("noOfficeFound")}</strong>
+            <span>{t("searchTips")}</span>
           </div>
         )}
       </div>

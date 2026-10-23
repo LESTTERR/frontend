@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-function getCurrentClock() {
+function getCurrentClock(locale) {
   return {
-    time: new Intl.DateTimeFormat("en-US", {
+    time: new Intl.DateTimeFormat(locale, {
       hour: "numeric",
       minute: "2-digit",
       second: "2-digit",
     }).format(new Date()),
-    date: new Intl.DateTimeFormat("en-US", {
+    date: new Intl.DateTimeFormat(locale, {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -16,16 +16,17 @@ function getCurrentClock() {
   };
 }
 
-export default function useClock() {
-  const [clock, setClock] = useState(getCurrentClock);
+export default function useClock(locale = "en-US") {
+  const [clock, setClock] = useState(() => getCurrentClock(locale));
 
   useEffect(() => {
+    setClock(getCurrentClock(locale));
     const intervalId = window.setInterval(() => {
-      setClock(getCurrentClock());
+      setClock(getCurrentClock(locale));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [locale]);
 
   return clock;
 }

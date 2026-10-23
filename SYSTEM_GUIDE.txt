@@ -1,0 +1,157 @@
+OLONGAPO CITY HALL NAVIGATOR - SYSTEM GUIDE
+Reviewed: 2026-10-18 (Asia/Manila)
+Scope: frontend project source, configuration, current static assets, and local build/dependency checks.
+
+PURPOSE
+This is a React single-page web app for finding offices in Olongapo City Hall and viewing the building as an interactive 3D map. Visitors can search for an office and follow a manually configured waypoint route. Staff can edit the browser's office, floor, pin, path, branding, and building-model configuration through /admin.
+
+IMPORTANT OPERATING MODEL
+There is no application server, database, Firebase connection, or API in this project. The public app is a static Vite build. Navigator settings are stored in the browser's localStorage, while uploaded GLB and logo files are stored in that browser's IndexedDB. These edits do not sync to another browser, device, or Vercel deployment and are lost if the browser's site data is cleared. Treat this as one persistent kiosk/browser per deployment. The admin screen is not server-protected.
+
+RUNNING THE PROJECT
+Requirements: Node.js and npm.
+
+  npm install
+  npm run dev
+
+Vite normally serves the development app at http://localhost:5173. The dev script binds to 0.0.0.0, so other devices on the same network may be able to reach it. Do not expose the development server to an untrusted network.
+
+Other scripts:
+  npm run build    Create the production static site in dist/.
+  npm run preview  Preview dist/ at port 4173.
+
+Vercel uses the SPA rewrite in vercel.json so client-side routes such as /admin load index.html. No environment variables are currently required. The local .env file was empty during this review and is ignored by Git.
+
+TECHNOLOGY AND ENTRY FLOW
+- React 18 renders the app; Vite builds and serves it.
+- React Router is configured in src/main.jsx. /admin/* renders AdminApp; all other paths render App.
+- App is the public kiosk experience. AdminApp hosts the admin sections.
+- Three.js and GLTFLoader render the building. ThreeMapViewer.jsx is lazy-loaded by the map and admin editors.
+- lucide-react supplies the interface icons. styles.css contains the app and admin styling.
+- There is no server-side authorization layer or remote persistence layer.
+
+PUBLIC VISITOR FLOW AND FEATURES
+1. The landing screen shows the organization name/title, a background video, and a prompt to proceed. Tapping the screen opens the map workspace.
+2. A quick-use tutorial appears on entry. The visitor can reopen it with Help.
+3. The office sidebar supports text search across office name, floor, category, description, and keywords. It can be hidden and shown.
+4. Choosing an office selects it and asks the 3D viewer to find a path from the configured kiosk start. If a valid route exists, the orange path is drawn and animated and the camera follows it. Clicking a labeled office in the 3D model selects it too.
+5. The floor controls can focus one enabled floor or show all floors. Recenter, zoom, orbit/drag, and touchscreen gestures control the map view.
+6. The landing header shows the organization logo/name/title, a live clock/date, and a calendar popover.
+7. After about 10 seconds without activity, the kiosk shows a 10-second return warning. Continued activity resets the timer; otherwise the app returns to the landing screen. The timer is suspended while a route animation is running.
+
+DEFAULT DATA AND ROUTING
+- Three enabled floors are defined in src/data/navigatorDefaults.js.
+- src/data/offices.js contains 42 seeded offices: 15 on the 1st floor, 17 on the 2nd, and 10 on the 3rd.
+- The default model path is /TEST.glb.
+- The default route start is the unplaced kiosk node entrance-kiosk. The seeded route-edge list is empty. Therefore, a destination correctly reports that no route is available until staff place the kiosk and configure a connected path.
+- Route nodes store 3D model-local x/y/z positions. Edges explicitly connect walkable points. The pathfinder uses geometric edge distance to find a route; it does not invent a straight-line shortcut.
+- Walk edges connect points on the same floor. Stair edges require matching stair pins on adjacent floors. Elevator edges connect elevator pins on different floors. Offices need an office-type path node linked to the office record.
+- During navigation the viewer draws the stored path and transitions floors along the configured edges. Route data guides visitors; it is not an access-control or safety system. Survey and visually verify every path in the actual building.
+- src/services/pathfinding.js validates graph connections and finds routes. src/services/navigatorConfig.js normalizes configuration and migrates floor references by ID/label/number.
+
+ADMIN WORKSPACE (/admin)
+The admin login screen unlocks a sidebar with these sections:
+- Dashboard: counts offices, enabled floors, pins and edges; shows office distribution and config timestamps.
+- Offices: search, add, edit, assign a floor, and delete office entries.
+- Floors: add/edit/delete floors, choose order, enable/disable floors, assign named GLB groups, and preview a floor. It prevents duplicate names/orders and protects floors that are still referenced.
+- Map Pins: place and drag kiosk, office, entrance, stair, elevator, and waypoint nodes on the 3D model; edit node details; link office pins; choose the kiosk start.
+- Paths: draw routes by clicking corridor points, validate the kiosk-to-office chain, and add/edit/delete explicit walk, stair, or elevator edges. The editor supports undoing draft points and requires validation before saving a drawn route.
+- Settings: edit organization identity and contact fields, public title/tagline, brand color, upload/remove a logo, and upload/remove one complete building GLB.
+
+Logo uploads are limited to PNG, JPG, or WebP, under 5 MB, and the client checks the file signature. GLB uploads are limited to 100 MB; the client checks the binary GLB header/JSON and rejects external model resources and unsupported texture types, then parses the model to list hierarchy groups. Floor groups can be assigned in Floors.
+
+SETTINGS AND FILE STORAGE DETAILS
+- Main config key: localStorage "olongapo.navigator.config.v1".
+- Admin-unlocked flag: sessionStorage "olongapo.admin.unlocked". It lasts for that browser tab session.
+- Uploaded binary assets: IndexedDB database "olongapo-navigator-assets"; config stores their IDs and metadata.
+- Object URLs are created for saved browser files and revoked when the hook/viewer cleans up.
+- The app listens for same-tab config update events and browser storage events. There is no supported in-app import/restore flow or shared configuration service.
+- Contact address/phone/email/website are saved by Settings but are not currently shown on the public screen. The saved landing kicker and brand color are also not currently applied by the public UI; LandingScreen uses a hard-coded kicker.
+
+FOLDER AND FILE MAP
+frontend/
+|-- index.html                    HTML entry, app title, favicon, and src/main.jsx mount
+|-- package.json                  scripts and direct dependencies
+|-- package-lock.json             locked dependency graph
+|-- vite.config.js                Vite React plugin configuration
+|-- vercel.json                   SPA route rewrite
+|-- README.md                     setup and project notes
+|-- DEPLOYMENT-CHECKLIST.md       deployment, kiosk, data, and security checklist
+|-- SYSTEM_GUIDE.txt              this AI-readable system description
+|-- .gitignore                    ignores node_modules, dist, .env files, logs, etc.
+|-- src/
+|   |-- main.jsx                  React root and route table
+|   |-- App.jsx                   visitor flow, search, map controls, tutorial, idle timer
+|   |-- AdminApp.jsx              admin login, section selection, logout
+|   |-- styles.css                public and admin styles
+|   |-- components/
+|   |   |-- Header.jsx            branding, clock, calendar
+|   |   |-- LandingScreen.jsx     landing video and start prompt
+|   |   |-- OfficeSidebar.jsx     visitor office search/list
+|   |   |-- MapPreview.jsx        lazy map wrapper and map status
+|   |   |-- ThreeMapViewer.jsx    Three.js scene, GLB loading, map interactions, paths
+|   |   `-- admin/
+|   |       |-- AdminLogin.jsx
+|   |       |-- AdminSidebar.jsx
+|   |       |-- AdminDashboard.jsx
+|   |       |-- AdminOffices.jsx
+|   |       |-- AdminFloors.jsx
+|   |       |-- AdminMapPins.jsx
+|   |       |-- AdminPaths.jsx
+|   |       |-- AdminMunicipality.jsx (organization settings/uploads)
+|   |       `-- Admin3DPreview.jsx (currently empty and unused)
+|   |-- data/
+|   |   |-- offices.js            42 seeded office records
+|   |   `-- navigatorDefaults.js  default floors, model path, route start, config factory
+|   |-- hooks/
+|   |   |-- useNavigatorConfig.js local config and IndexedDB asset hook
+|   |   `-- useClock.js           live clock/date hook
+|   `-- services/
+|       |-- navigatorConfig.js    normalization, browser storage, CRUD helpers, admin PIN logic
+|       |-- pathfinding.js        graph validation and waypoint route search
+|       `-- modelGroups.js        GLB checks and hierarchy-group inspection
+|-- public/
+|   |-- TEST.glb                 checked-in default model, 51,291,068 bytes
+|   |-- pic/
+|   |   |-- DJI_0147.mp4         landing background video, 87,897,071 bytes
+|   |   `-- GAPO SEAL copy.png   favicon/default organization logo
+|   |-- model2/                  three additional checked-in floor GLBs
+|   `-- models/reference/        split-floor/navmesh/reference GLBs and README
+|-- dist/                         generated build output (not source; ignored by Git)
+|-- node_modules/                 installed packages (not source; ignored by Git)
+|-- .git/                         repository metadata
+|-- .codex/                       local Vite output/error logs
+`-- .kilo/                        local worktree/tooling data
+
+Anything placed in public/ is served as a static public asset after deployment. Review asset rights and building-map privacy before publishing. TEST.glb and the video are large and can slow first load on a kiosk connection. The extra model2/reference GLBs are checked-in assets but the default app path is TEST.glb.
+
+SECURITY REVIEW - IMPORTANT
+1. Admin access is not secure authentication. The PIN check runs entirely in shipped JavaScript, the unlock flag is in sessionStorage, and local configuration can be read/changed through browser developer tools. A hash in client code does not protect the admin UI or data. The source also retains a hard-coded legacy PIN path that remains accepted after a PIN hash is stored; using that legacy path resets the stored hash to the compiled default. There is no login throttling or user-facing PIN rotation flow. Do not expose /admin as a trusted admin boundary. Use trusted server-side authentication/authorization for remote administration, or physically secure a dedicated kiosk and treat its browser data as public.
+2. localStorage and IndexedDB are per-browser storage, not encrypted or backed up. Do not store confidential staff or security information there. Clearing site data removes local edits and uploaded files. A second browser/device starts with separate data.
+3. Storage read/write helpers catch browser storage errors. However, saveNavigatorConfig ignores the false result from a failed localStorage write and still dispatches an update; the Settings screen can show success even if the value was not persisted (for example, quota/private-mode restrictions).
+4. vercel.json currently configures only the SPA rewrite; this repository does not explicitly configure HTTP security response headers such as a Content-Security-Policy. Review deployment headers and HTTPS settings before production.
+5. The GLB parser has file-size and embedded-resource checks, but parsing/rendering a complex model can still consume substantial browser memory/CPU. Upload only trusted, reviewed building files. The 100 MB limit is not a complexity limit.
+6. The reviewed source scan found no direct innerHTML/dangerouslySetInnerHTML, eval/new Function, or app fetch/axios calls. React renders user-entered text as text. This is a source-level observation, not a penetration test.
+7. No secret values were copied into this guide. The current .env file is empty and ignored; keep it that way for secrets, and never put server credentials in client-side Vite variables.
+
+ERROR HANDLING AND KNOWN GAPS
+- The 3D viewer shows a generic "Unable to load 3D model" message if every model fails, while console output contains the detailed load error. If only some configured model paths fail, it continues with the successful models and logs the failed paths.
+- Admin upload code shows errors for invalid/unreadable GLB/logo files and IndexedDB failures. Missing locally stored assets are shown as a re-upload prompt.
+- There is no app-wide React error boundary, automated test script, or lint script in package.json. A component/render or lazy-chunk failure may not have a friendly recovery screen.
+- Dashboard's "entry points" count checks for node type "entry", but normalized node types use "entrance"; that dashboard count will remain zero.
+- Admin3DPreview.jsx is an empty, unused placeholder.
+- Existing reference-model README says the active model is public/models/OCH AF.glb, which is absent. The actual default app model is public/TEST.glb. DEPLOYMENT-CHECKLIST.md also says TEST.glb is untracked, but Git currently tracks it. Treat code and current Git state as authoritative for these paths.
+
+CHECKS PERFORMED ON 2026-10-18
+- npm run build: passed. Vite emitted a chunk-size warning for the GLTFLoader chunk (569.40 kB minified; 146.11 kB gzip).
+- npm audit: 0 known vulnerabilities across the installed dependency tree at review time.
+- No automated tests were run; package.json has no test script.
+- Review was limited to this frontend folder and local source/build/dependency inspection. It did not test a deployed Vercel site, kiosk device, browser session attacks, or real-world route accuracy.
+
+SUGGESTED FOLLOW-UP ORDER
+1. Replace the client-side PIN gate before allowing public access to admin features; remove the legacy acceptance/reset path.
+2. Decide how kiosk settings and uploaded files will be backed up and restored; add a trusted shared backend if multiple devices must share data.
+3. Make storage write failures visible, and add a recovery boundary for render/lazy-load errors.
+4. Configure and verify response headers/HTTPS on the deployment, and directly refresh /admin on the production build.
+5. Survey and configure real waypoint paths and verify them on every floor.
+6. Optimize or consciously accept the large public video/model payloads and the 569 kB Three.js loader chunk.
