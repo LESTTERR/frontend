@@ -104,13 +104,14 @@ export default function useNavigatorConfig() {
   );
 
   const saveConfig = useCallback((nextConfig) => {
-    setConfig((currentConfig) => {
-      const value =
-        typeof nextConfig === "function" ? nextConfig(currentConfig) : nextConfig;
-
-      return saveNavigatorConfig(value);
-    });
-  }, []);
+    const value =
+      typeof nextConfig === "function" ? nextConfig(config) : nextConfig;
+    const result = saveNavigatorConfig(value);
+    if (result !== false) {
+      setConfig(result);
+    }
+    return result !== false;
+  }, [config]);
 
   const resetConfig = useCallback(() => {
     setConfig(resetNavigatorConfig());
@@ -124,8 +125,8 @@ export default function useNavigatorConfig() {
     }
 
     if (savedFiles.length > 0) {
-      setConfig((currentConfig) =>
-        saveNavigatorConfig({
+      setConfig((currentConfig) => {
+        const result = saveNavigatorConfig({
           ...currentConfig,
           modelFiles: [
             ...currentConfig.modelFiles.filter(
@@ -142,8 +143,9 @@ export default function useNavigatorConfig() {
           ...(options.buildingModel && options.modelGroupNames
             ? { modelGroupNames: options.modelGroupNames }
             : {}),
-        }),
-      );
+        });
+        return result === false ? currentConfig : result;
+      });
       if (options.replaceFileId) {
         await deleteModelFile(options.replaceFileId);
       }
@@ -154,8 +156,8 @@ export default function useNavigatorConfig() {
 
   const removeModelFile = useCallback(async (fileId) => {
     await deleteModelFile(fileId);
-    setConfig((currentConfig) =>
-      saveNavigatorConfig({
+    setConfig((currentConfig) => {
+      const result = saveNavigatorConfig({
         ...currentConfig,
         modelFiles: currentConfig.modelFiles.filter(
           (modelFile) => modelFile.id !== fileId,
@@ -165,8 +167,9 @@ export default function useNavigatorConfig() {
             ? ""
             : currentConfig.buildingModelFileId,
         logoFileId: currentConfig.logoFileId === fileId ? "" : currentConfig.logoFileId,
-      }),
-    );
+      });
+      return result === false ? currentConfig : result;
+    });
   }, []);
 
   return {

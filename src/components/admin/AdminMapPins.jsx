@@ -133,7 +133,10 @@ export default function AdminMapPins() {
         ? addPathNode(pathNodes, form)
         : updatePathNode(pathNodes, editingId, form),
     };
-    save(next);
+    if (!save(next)) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     cancel();
   };
 

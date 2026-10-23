@@ -114,7 +114,10 @@ export default function AdminFloors() {
       return;
     }
 
-    saveConfig({ ...config, floors: nextFloors });
+    if (!saveConfig({ ...config, floors: nextFloors })) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     cancel();
   };
 
@@ -134,7 +137,10 @@ export default function AdminFloors() {
       setValidationMessage("At least one floor must remain enabled.");
       return;
     }
-    saveConfig({ ...config, floors: nextFloors });
+    if (!saveConfig({ ...config, floors: nextFloors })) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     setValidationMessage("");
   };
 

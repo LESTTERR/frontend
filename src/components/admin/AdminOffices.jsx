@@ -40,8 +40,11 @@ export default function AdminOffices() {
   }, [offices, search]);
 
   const save = (nextConfig) => {
-    saveNavigatorConfig(nextConfig);
-    setConfig(nextConfig);
+    const result = saveNavigatorConfig(nextConfig);
+    if (result !== false) {
+      setConfig(result);
+    }
+    return result;
   };
 
   const startEdit = (office) => {
@@ -87,13 +90,25 @@ export default function AdminOffices() {
             name: form.name.trim(),
           }),
     });
+    if (next === false) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     save(next);
     cancel();
   };
 
   const handleDelete = (officeId) => {
     if (!window.confirm("Delete this office?")) return;
-    save(saveNavigatorConfig({ ...config, offices: removeOffice(offices, officeId) }));
+    const result = saveNavigatorConfig({
+      ...config,
+      offices: removeOffice(offices, officeId),
+    });
+    if (result === false) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
+    save(result);
   };
 
   const updateField = (field, value) => {

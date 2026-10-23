@@ -408,11 +408,16 @@ export function saveNavigatorConfig(config) {
     updatedAt: new Date().toISOString(),
   });
 
-  safeWriteStorage(
+  const written = safeWriteStorage(
     NAVIGATOR_CONFIG_STORAGE_KEY,
     JSON.stringify(normalizedConfig),
     "localStorage",
   );
+
+  if (!written) {
+    return false;
+  }
+
   window.dispatchEvent(
     new CustomEvent(NAVIGATOR_CONFIG_UPDATED_EVENT, {
       detail: normalizedConfig,

@@ -78,7 +78,10 @@ export default function AdminMunicipality() {
       ...form,
       cityName: form.organizationName,
     });
-    saveConfig(next);
+    if (!saveConfig(next)) {
+      setFormError("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2000);
   };

@@ -74,7 +74,7 @@ export default function AdminPaths() {
   );
 
   const save = (nextConfig) => {
-    saveConfig(nextConfig);
+    return saveConfig(nextConfig);
   };
 
   const startEdit = (edge) => {
@@ -143,12 +143,15 @@ export default function AdminPaths() {
       setValidationMessage("Stair and elevator edge types must connect different floors.");
       return;
     }
-    save({
+    if (!save({
       ...config,
       pathEdges: isAdding
         ? addPathEdge(pathEdges, form)
         : updatePathEdge(pathEdges, editingId, form),
-    });
+    })) {
+      setValidationMessage("Unable to save. Storage may be full or unavailable.");
+      return;
+    }
     cancel();
   };
 
@@ -480,6 +483,7 @@ export default function AdminPaths() {
                 startNodeId={routeStartId}
                 viewCommand={viewerCommand}
                 editFloor={selectedFloor}
+                lockCameraRotation={false}
                 isolatedFloorView
                 isDrawingRoute={isRouteActive}
                 onRoutePointPlace={handleRoutePoint}
