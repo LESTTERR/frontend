@@ -19,6 +19,7 @@ import AdminMapPins from "./components/admin/AdminMapPins.jsx";
 import AdminPaths from "./components/admin/AdminPaths.jsx";
 import AdminMunicipality from "./components/admin/AdminMunicipality.jsx";
 import { isAdminUnlocked, lockAdmin } from "./services/navigatorConfig.js";
+import useNavigatorConfig from "./hooks/useNavigatorConfig.js";
 
 const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Overview and stats" },
@@ -31,11 +32,19 @@ const ADMIN_SECTIONS = [
 
 export default function AdminApp() {
   const navigate = useNavigate();
+  const { config } = useNavigatorConfig();
   const [isUnlocked, setIsUnlocked] = useState(() => isAdminUnlocked());
   const [activeSection, setActiveSection] = useState("dashboard");
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   );
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--brand-color",
+      config.brandColor || "#238b67",
+    );
+  }, [config.brandColor]);
 
   useEffect(() => {
     const timer = setInterval(() => {
