@@ -16,7 +16,7 @@
   --green: #238b67;
   --green-strong: #176f53;
   --green-soft: #e7f7ef;
-  --brand-color: var(--green);
+  --brand-color: #238b67;
   --gold: #c7932f;
   --red: #b94d44;
   --sky: #4f7ea8;
@@ -249,7 +249,7 @@ button {
   padding: 10px clamp(18px, 4vw, 48px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   color: white;
-  background: rgba(18, 78, 59, 0.86);
+  background: var(--brand-color);
   backdrop-filter: blur(18px);
 }
 
@@ -267,7 +267,7 @@ button {
   place-items: center;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--brand-color);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
 }
 
@@ -281,7 +281,7 @@ button {
 .brand-label,
 .section-label {
   margin: 0 0 3px;
-  color: rgba(236, 253, 245, 0.78);
+  color: var(--brand-color);
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -440,7 +440,7 @@ button {
 .calendar-day.today {
   border-color: var(--green-strong);
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
   box-shadow: 0 8px 18px rgba(35, 139, 103, 0.24);
 }
 
@@ -719,7 +719,7 @@ button {
   max-width: 100%;
   padding: 4px 8px;
   border-radius: 999px;
-  color: var(--green);
+  color: var(--brand-color);
   background: #e5f1eb;
   font-size: 0.66rem;
   font-weight: 900;
@@ -781,9 +781,9 @@ button {
 }
 
 .tool-button.primary {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 .map-preview {
@@ -847,7 +847,7 @@ button {
   padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--green);
+  color: var(--brand-color);
   background: rgba(255, 255, 255, 0.94);
   font-weight: 900;
   text-align: center;
@@ -984,7 +984,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--green);
+  color: var(--brand-color);
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -1029,7 +1029,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--green);
+  color: var(--brand-color);
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -1052,7 +1052,7 @@ button {
   border: 0;
   border-radius: 8px;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
   font-weight: 900;
   box-shadow: 0 16px 30px rgba(20, 107, 79, 0.22);
 }
@@ -1449,7 +1449,7 @@ button {
   padding: 0 14px;
   border: 0;
   border-radius: 14px;
-  color: var(--green);
+  color: var(--brand-color);
   background: white;
   box-shadow: 0 4px 24px rgba(35, 139, 103, 0.18);
 }
@@ -1685,7 +1685,7 @@ button {
 
 .home-shell .tool-button.primary {
   border-color: #f59e0b;
-  color: var(--green);
+  color: var(--brand-color);
   background: #fffbeb;
 }
 
@@ -1715,7 +1715,7 @@ button {
 }
 
 .home-shell .viewer-status {
-  color: var(--green);
+  color: var(--brand-color);
 }
 
 .home-shell .map-caption {
@@ -1723,7 +1723,7 @@ button {
 }
 
 .home-shell .map-caption span {
-  color: var(--green);
+  color: var(--brand-color);
 }
 
 .map-legend,
@@ -1938,7 +1938,7 @@ button {
 .floor-switcher button.active {
   border-color: var(--green-strong);
   color: white;
-  background: linear-gradient(125deg, var(--green) 0%, var(--green-strong) 100%);
+  background: linear-gradient(125deg, var(--brand-color) 0%, var(--green-strong) 100%);
   box-shadow: 0 2px 8px rgba(35, 139, 103, 0.34);
 }
 
@@ -2050,7 +2050,7 @@ button {
   flex: 0 0 auto;
   border-radius: 14px;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 .tutorial-step-icon.zoom-icons {
@@ -2086,7 +2086,7 @@ button {
   border: 0;
   border-radius: 13px;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
   font-weight: 900;
   box-shadow: 0 12px 28px rgba(35, 139, 103, 0.22);
 }
@@ -2127,7 +2127,7 @@ button {
   place-items: center;
   border-radius: 50%;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 .idle-warning-panel strong {
@@ -2185,7 +2185,7 @@ button {
   border: 0;
   border-radius: 12px;
   color: white;
-  background: var(--green);
+  background: var(--brand-color);
   font-weight: 900;
 }
 
@@ -2800,7 +2800,7 @@ button {
 }
 
 .admin-stat-card:hover {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(35, 139, 103, 0.08);
 }
@@ -2862,7 +2862,7 @@ button {
 
 .admin-stat-card:hover .admin-stat-arrow {
   opacity: 1;
-  color: var(--green);
+  color: var(--brand-color);
 }
 
 .admin-dashboard-row {
@@ -2892,7 +2892,7 @@ button {
 }
 
 .admin-quick-action-btn:hover {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   background: #ffffff;
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
@@ -3075,7 +3075,7 @@ button {
 
 .admin-icon-btn.primary:hover {
   background: var(--green-soft);
-  border-color: var(--green);
+  border-color: var(--brand-color);
   color: var(--green-strong);
 }
 
@@ -3131,7 +3131,7 @@ button {
 .admin-form-group input:focus,
 .admin-form-group select:focus,
 .admin-form-group textarea:focus {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   box-shadow: 0 0 0 3px rgba(35, 139, 103, 0.12);
 }
 
@@ -3267,7 +3267,7 @@ button {
 }
 
 .admin-search-wrap input:focus {
-  border-color: var(--green);
+  border-color: var(--brand-color);
 }
 
 .admin-search-clear {
@@ -3473,9 +3473,9 @@ button {
 }
 
 .admin-floor-pill.active {
-  background: var(--green);
+  background: var(--brand-color);
   color: #ffffff;
-  border-color: var(--green);
+  border-color: var(--brand-color);
 }
 
 .admin-floor-pill small {
@@ -3681,7 +3681,7 @@ button {
 }
 
 .admin-upload-droparea:hover {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   background: #f0fdf4;
 }
 
@@ -3927,7 +3927,7 @@ button {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--green);
+  background: var(--brand-color);
 }
 
 /* ----------------- 3D Live Preview Tab ----------------- */
@@ -3991,9 +3991,9 @@ button {
 }
 
 .admin-preview-floor-btn.active {
-  background: var(--green);
+  background: var(--brand-color);
   color: #ffffff;
-  border-color: var(--green);
+  border-color: var(--brand-color);
 }
 
 .admin-preview-viewer-container {
@@ -4405,7 +4405,7 @@ button {
   padding: 11px;
   border-radius: 10px;
   border: 0;
-  background: var(--green);
+  background: var(--brand-color);
   color: #ffffff;
   font-size: 0.95rem;
   font-weight: 800;
@@ -4441,7 +4441,7 @@ button {
 }
 
 .admin-password-input-wrap input:focus {
-  border-color: var(--green);
+  border-color: var(--brand-color);
   box-shadow: 0 0 0 3px rgba(35, 139, 103, 0.14);
 }
 
