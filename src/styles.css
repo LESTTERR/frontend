@@ -278,7 +278,15 @@ button {
   object-fit: contain;
 }
 
-.brand-label,
+.brand-label {
+  margin: 0 0 3px;
+  color: white;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .section-label {
   margin: 0 0 3px;
   color: var(--brand-color);
