@@ -8,14 +8,23 @@ import {
 export default function LandingScreen({
   cityName,
   title = "City Hall Navigator",
+  kicker,
   tagline,
+  brandColor = "#238b67",
+  phone,
+  email,
+  website,
+  address,
   onStart,
+  t,
 }) {
+  const startStyle = { backgroundColor: brandColor };
+  const contactLabelStyle = { color: brandColor };
   return (
     <main
       className="landing"
       onClick={onStart}
-      aria-label="Enter City Hall Navigator"
+      aria-label={t("enterNavigator")}
     >
       <div className="landing-backdrop" aria-hidden="true">
         <video
@@ -33,41 +42,51 @@ export default function LandingScreen({
         <div className="landing-copy">
           <span className="landing-kicker">
             <MapPinned size={18} aria-hidden="true" />
-            Municipal wayfinding
+            {kicker || t("municipalWayfinding")}
           </span>
 
           <div className="landing-title-block">
             <h2>{title}</h2>
-            <p>{tagline || `${cityName} office finder and 3D route guide`}</p>
+            <p>{tagline || t("landingTagline", { cityName })}</p>
           </div>
         </div>
 
         <button
           className="start-prompt"
           type="button"
+          style={startStyle}
           onClick={(event) => {
             event.stopPropagation();
             onStart();
           }}
         >
-          <span>Touch anywhere to proceed</span>
+          <span>{t("startPrompt")}</span>
           <ArrowRight size={20} aria-hidden="true" />
         </button>
 
-        <div className="landing-quick-info" aria-label="Wayfinding highlights">
+        <div className="landing-quick-info" aria-label={t("wayfindingHighlights")}>
           <div>
             <Building2 size={19} aria-hidden="true" />
-            <span>Office finder</span>
+            <span>{t("officeFinder")}</span>
           </div>
           <div>
             <MapPinned size={19} aria-hidden="true" />
-            <span>3D building map</span>
+            <span>{t("buildingMap")}</span>
           </div>
           <div>
             <Route size={19} aria-hidden="true" />
-            <span>Guided route</span>
+            <span>{t("guidedRoute")}</span>
           </div>
         </div>
+
+        {(phone || email || website || address) && (
+          <div className="landing-contact" style={contactLabelStyle}>
+            {address && <span>{address}</span>}
+            {phone && <span>&#8226; {phone}</span>}
+            {email && <span>&#8226; {email}</span>}
+            {website && <span>&#8226; {website}</span>}
+          </div>
+        )}
       </div>
     </main>
   );

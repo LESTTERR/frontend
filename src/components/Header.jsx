@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import useClock from "../hooks/useClock.js";
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 function isSameDay(firstDate, secondDate) {
   return (
     firstDate.getFullYear() === secondDate.getFullYear() &&
@@ -40,8 +38,12 @@ export default function Header({
   cityName,
   title = "City Hall Navigator",
   logoUrl = "",
+  brandColor = "#238b67",
+  language,
+  t,
 }) {
-  const { time, date } = useClock();
+  const locale = language === "fil" ? "fil-PH" : "en-US";
+  const { time, date } = useClock(locale);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const calendarRef = useRef(null);
@@ -53,11 +55,20 @@ export default function Header({
   );
   const calendarTitle = useMemo(
     () =>
-      new Intl.DateTimeFormat("en-US", {
+      new Intl.DateTimeFormat(locale, {
         month: "long",
         year: "numeric",
       }).format(calendarMonth),
-    [calendarMonth],
+    [calendarMonth, locale],
+  );
+  const weekdayLabels = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) =>
+        new Intl.DateTimeFormat(locale, { weekday: "short" }).format(
+          new Date(2024, 0, 7 + index),
+        ),
+      ),
+    [locale],
   );
 
   useEffect(() => {
@@ -115,12 +126,14 @@ export default function Header({
           <img src={logoUrl || "/pic/GAPO%20SEAL%20copy.png"} alt="" />
         </span>
         <div>
-          <p className="brand-label">{cityName}</p>
+          <p className="brand-label" style={{ color: brandColor }}>
+            {cityName}
+          </p>
           <h1>{title}</h1>
         </div>
       </div>
 
-      <div className="clock-group" aria-label="Current date and time">
+      <div className="clock-group" aria-label={t("dateAndTime")}>
         <div className="clock-item">
           <Clock size={18} aria-hidden="true" />
           <span>{time}</span>
@@ -143,14 +156,14 @@ export default function Header({
             <div
               className="calendar-popover"
               role="dialog"
-              aria-label="Calendar"
+              aria-label={t("calendar")}
             >
               <div className="calendar-popover-header">
                 <button
                   className="calendar-nav-button"
                   type="button"
                   onClick={showPreviousMonth}
-                  aria-label="Show previous month"
+                  aria-label={t("previousMonth")}
                 >
                   <ChevronLeft size={18} aria-hidden="true" />
                 </button>
@@ -159,14 +172,14 @@ export default function Header({
                   className="calendar-nav-button"
                   type="button"
                   onClick={showNextMonth}
-                  aria-label="Show next month"
+                  aria-label={t("nextMonth")}
                 >
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               </div>
 
               <div className="calendar-weekdays" aria-hidden="true">
-                {WEEKDAY_LABELS.map((weekday) => (
+                {weekdayLabels.map((weekday) => (
                   <span key={weekday}>{weekday}</span>
                 ))}
               </div>

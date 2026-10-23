@@ -18,14 +18,39 @@ import LandingScreen from "./components/LandingScreen.jsx";
 import OfficeSidebar from "./components/OfficeSidebar.jsx";
 import MapPreview from "./components/MapPreview.jsx";
 import useNavigatorConfig from "./hooks/useNavigatorConfig.js";
+import {
+  DEFAULT_LANDING_KICKER,
+  DEFAULT_LANDING_TAGLINE,
+} from "./data/navigatorDefaults.js";
+import { preloadModelAssets } from "./services/modelAsset.js";
+import { getTranslator } from "./services/translations.js";
 
 const START_FLOOR = "1st Floor";
+const LANGUAGE_STORAGE_KEY = "olongapo.navigator.language.v1";
 const SHOW_NAVIGATION_DEBUG =
   import.meta.env.DEV &&
   new URLSearchParams(window.location.search).get("debugNavigation") === "1";
-const IDLE_WARNING_MS = 8_000;
+const IDLE_WARNING_MS = 15_000;
 const IDLE_RETURN_SECONDS = 10;
 const IDLE_RETURN_MS = IDLE_RETURN_SECONDS * 1000;
+
+function getSavedLanguage() {
+  try {
+    return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "fil"
+      ? "fil"
+      : "en";
+  } catch {
+    return "en";
+  }
+}
+
+function getLocalizedFloorLabel(label, language) {
+  const match = String(label ?? "").match(/^(\d+)(st|nd|rd|th)\s+Floor$/i);
+  if (!match) {
+    return label;
+  }
+  return language === "fil" ? `Palapag ${match[1]}` : `${match[1]}${match[2]} Floor`;
+}
 
 function getRouteDisplayFloor(office, floors) {
   const startingFloor = floors.find((floor) => floor.enabled !== false);
@@ -41,6 +66,9 @@ export default function App() {
     resolvedModelPaths,
     resolvedLogoUrl,
   } = useNavigatorConfig();
+  const [language, setLanguage] = useState(getSavedLanguage);
+  const t = useMemo(() => getTranslator(language), [language]);
+  const [accessibilityMode, setAccessibilityMode] = useState(false);
   const floors = config.floors || [];
   const enabledFloorIds = new Set(
     floors.filter((floor) => floor.enabled !== false).map((floor) => floor.id),
@@ -76,6 +104,50 @@ export default function App() {
   const idleWarningTimerRef = useRef(null);
   const idleReturnTimerRef = useRef(null);
   const idleCountdownTimerRef = useRef(null);
+  const cityName = config.organizationName || config.cityName || "Olongapo City";
+  const landingKicker =
+    config.landingKicker === DEFAULT_LANDING_KICKER
+      ? t("municipalWayfinding")
+      : config.landingKicker;
+  const landingTagline =
+    config.landingTagline === DEFAULT_LANDING_TAGLINE
+      ? t("landingTagline", { cityName })
+      : config.landingTagline;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch (error) {
+      console.warn("Unable to save the language preference", error);
+    }
+  }, [language]);
+
+  useEffect(() => {
+    const modelPaths = [...new Set(resolvedModelPaths)];
+    if (modelAssetStatus !== "ready" || modelPaths.length === 0) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    preloadModelAssets(modelPaths).then((results) => {
+      if (isCancelled) {
+        return;
+      }
+
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(
+            `Unable to preload 3D model: ${modelPaths[index]}`,
+            result.reason,
+          );
+        }
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [modelAssetStatus, resolvedModelPaths]);
 
   // Keep selected office ID valid if offices list changes
   useEffect(() => {
@@ -215,12 +287,16 @@ export default function App() {
 
   const handleNavigationStatus = useCallback((result) => {
     setIsRouteAnimating(result.status === "working");
+    const isAccessibleRouteUnavailable =
+      result.reason === "no-accessible-route" || accessibilityMode;
     setNavigationMessage(
       result.status === "unavailable"
-        ? "No route available to this office."
+        ? isAccessibleRouteUnavailable
+          ? "accessibleUnavailable"
+          : "noRoute"
         : "",
     );
-  }, []);
+  }, [accessibilityMode]);
 
   const handleSelectFloor = useCallback((floor) => {
     setActiveFloor(floor);
@@ -232,9 +308,20 @@ export default function App() {
     sendMapCommand("reset-view");
   }, []);
 
+  const handleAccessibilityModeChange = useCallback(() => {
+    setAccessibilityMode((currentMode) => !currentMode);
+    setNavigationMessage("");
+    sendMapCommand("enter-route", {
+      floor: activeFloor,
+      autoFloors: true,
+    });
+  }, [activeFloor]);
+
   const handleRouteFloorChange = useCallback((floor) => {
     setActiveFloor(floor);
   }, []);
+
+  const formatFloor = (floor) => getLocalizedFloorLabel(floor, language);
 
   const handleStart = useCallback(() => {
     setActiveFloor("All Floors");
@@ -252,15 +339,25 @@ export default function App() {
       {!hasStarted ? (
         <>
           <Header
-            cityName={config.organizationName || config.cityName || "Olongapo City"}
+            cityName={cityName}
             title={config.navigatorTitle}
             logoUrl={resolvedLogoUrl}
+            brandColor={config.brandColor || "#238b67"}
+            language={language}
+            t={t}
           />
           <LandingScreen
-            cityName={config.organizationName || config.cityName || "Olongapo City"}
+            cityName={cityName}
             title={config.navigatorTitle}
-            tagline={config.landingTagline}
+            kicker={landingKicker}
+            tagline={landingTagline}
+            brandColor={config.brandColor || "#238b67"}
+            phone={config.phone}
+            email={config.email}
+            website={config.website}
+            address={config.address}
             onStart={handleStart}
+            t={t}
           />
         </>
       ) : (
@@ -268,53 +365,91 @@ export default function App() {
           className={`workspace home-shell ${
             isSidebarVisible ? "" : "sidebar-hidden"
           }`}
-          aria-label="City hall office map"
+          aria-label={t("buildingMap")}
         >
           {isSidebarVisible ? (
             <OfficeSidebar
               offices={filteredOffices}
               selectedOffice={selectedOffice}
               selectedOfficeId={selectedOffice?.id}
+              formatFloor={formatFloor}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               onSelectOffice={handleSelectOffice}
               onHideSidebar={() => setIsSidebarVisible(false)}
+              t={t}
             />
           ) : null}
 
           <section className="map-area">
-            <div className="map-toolbar" aria-label="Map actions">
-              <div className="map-chip-group" aria-label="Map status">
+            <div className="map-toolbar" aria-label={t("mapActions")}>
+              <div className="map-chip-group" aria-label={t("mapStatus")}>
                 {!isSidebarVisible ? (
                   <button
                     className="tool-button sidebar-show-button"
                     type="button"
                     onClick={() => setIsSidebarVisible(true)}
                     aria-expanded={isSidebarVisible}
-                    aria-label="Show office search"
+                    aria-label={t("showSearch")}
                   >
                     <PanelLeftOpen size={18} aria-hidden="true" />
-                    Offices
+                    {t("offices")}
                   </button>
                 ) : null}
                 <span className="map-chip">
                   <Layers size={16} aria-hidden="true" />
-                  {activeFloor}
+                  {activeFloor === "All Floors"
+                    ? t("allFloors")
+                    : formatFloor(activeFloor)}
                 </span>
                 <span className="map-chip muted">
                   <MapPinned size={16} aria-hidden="true" />
-                  {activeFloor === "All Floors" ? "Entrance overview" : "Focused floor view"}
+                  {activeFloor === "All Floors"
+                    ? t("entranceOverview")
+                    : t("focusedFloor")}
                 </span>
               </div>
 
               <div className="map-action-group">
+                <div
+                  className="language-toggle toolbar-language-toggle"
+                  role="group"
+                  aria-label={t("language")}
+                >
+                  <button
+                    type="button"
+                    className={language === "en" ? "active" : ""}
+                    aria-pressed={language === "en"}
+                    onClick={() => setLanguage("en")}
+                  >
+                    {t("english")}
+                  </button>
+                  <button
+                    type="button"
+                    className={language === "fil" ? "active" : ""}
+                    aria-pressed={language === "fil"}
+                    onClick={() => setLanguage("fil")}
+                  >
+                    {t("filipino")}
+                  </button>
+                </div>
+                <button
+                  className={`tool-button accessibility-toggle ${
+                    accessibilityMode ? "active" : ""
+                  }`}
+                  type="button"
+                  onClick={handleAccessibilityModeChange}
+                  aria-pressed={accessibilityMode}
+                >
+                  {t("pwdMode")}
+                </button>
                 <button
                   className="tool-button"
                   type="button"
                   onClick={() => setIsTutorialVisible(true)}
                 >
                   <CircleHelp size={18} aria-hidden="true" />
-                  Help
+                  {t("help")}
                 </button>
                 <button
                   className="tool-button"
@@ -322,7 +457,7 @@ export default function App() {
                   onClick={handleReturnToLanding}
                 >
                   <House size={18} aria-hidden="true" />
-                  Landing
+                  {t("landing")}
                 </button>
                 <button
                   className="tool-button"
@@ -330,7 +465,7 @@ export default function App() {
                   onClick={handleRecenter}
                 >
                   <Compass size={18} aria-hidden="true" />
-                  Recenter
+                  {t("recenter")}
                 </button>
               </div>
             </div>
@@ -349,23 +484,30 @@ export default function App() {
               onRouteFloorChange={handleRouteFloorChange}
               onNavigationStatus={handleNavigationStatus}
               showNavigationDebug={SHOW_NAVIGATION_DEBUG}
+              accessibilityMode={accessibilityMode}
+              t={t}
             />
 
             {navigationMessage ? (
               <p className="navigation-feedback" role="status">
-                {navigationMessage}
+                {t(navigationMessage)}
+              </p>
+            ) : null}
+            {accessibilityMode ? (
+              <p className="accessibility-indicator" role="status">
+                {t("accessibleActive")}
               </p>
             ) : null}
 
-            <div className="floor-switcher" aria-label="Floor selector">
-              <span>Floor</span>
+            <div className="floor-switcher" aria-label={t("floor")}>
+              <span>{t("floor")}</span>
               <button
                 className={activeFloor === "All Floors" ? "active" : ""}
                 type="button"
                 onClick={handleRecenter}
-                aria-label="Show all floors"
+                aria-label={t("showAllFloors")}
               >
-                All
+                {t("allFloorsShort")}
               </button>
               {floorOptions.map((option) => (
                 <button
@@ -373,7 +515,9 @@ export default function App() {
                   type="button"
                   key={option.floor}
                   onClick={() => handleSelectFloor(option.floor)}
-                  aria-label={`Show ${option.floor}`}
+                  aria-label={t("showFloor", {
+                    floor: formatFloor(option.floor),
+                  })}
                 >
                   <Layers size={14} aria-hidden="true" />
                   {option.label}
@@ -381,25 +525,25 @@ export default function App() {
               ))}
             </div>
 
-            <div className="map-zoom-controls" aria-label="Map zoom controls">
+            <div className="map-zoom-controls" aria-label={t("mapActions")}>
               <button
                 type="button"
                 onClick={() => sendMapCommand("zoom-in")}
-                aria-label="Zoom in"
+                aria-label={t("zoomIn")}
               >
                 <Plus size={18} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={() => sendMapCommand("zoom-out")}
-                aria-label="Zoom out"
+                aria-label={t("zoomOut")}
               >
                 <Minus size={18} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={handleRecenter}
-                aria-label="Fit map to screen"
+                aria-label={t("fitMap")}
               >
                 <Maximize2 size={18} aria-hidden="true" />
               </button>
@@ -413,22 +557,22 @@ export default function App() {
           className="map-tutorial"
           role="dialog"
           aria-modal="true"
-          aria-label="How to use the 3D map"
+          aria-label={t("mapTutorial")}
         >
           <section className="map-tutorial-panel">
             <button
               className="tutorial-close"
               type="button"
               onClick={() => setIsTutorialVisible(false)}
-              aria-label="Close map tutorial"
+              aria-label={t("closeTutorial")}
             >
               <X size={18} aria-hidden="true" />
             </button>
             <span className="tutorial-kicker">
               <CircleHelp size={18} aria-hidden="true" />
-              Quick guide
+              {t("quickGuide")}
             </span>
-            <h2>How to use the 3D map</h2>
+            <h2>{t("mapTutorial")}</h2>
             <div className="tutorial-steps">
               <div className="tutorial-step">
                 <span className="tutorial-step-icon zoom-icons" aria-hidden="true">
@@ -436,8 +580,8 @@ export default function App() {
                   <Minus size={18} />
                 </span>
                 <div>
-                  <strong>Zoom the model</strong>
-                  <p>Pinch on the screen, scroll the mouse wheel, or press the + and - buttons.</p>
+                  <strong>{t("zoomModel")}</strong>
+                  <p>{t("zoomHelp")}</p>
                 </div>
               </div>
               <div className="tutorial-step">
@@ -445,8 +589,8 @@ export default function App() {
                   <Compass size={20} />
                 </span>
                 <div>
-                  <strong>Move the view</strong>
-                  <p>Drag the 3D map to rotate and inspect the building.</p>
+                  <strong>{t("moveView")}</strong>
+                  <p>{t("moveHelp")}</p>
                 </div>
               </div>
               <div className="tutorial-step">
@@ -454,8 +598,8 @@ export default function App() {
                   <Search size={20} />
                 </span>
                 <div>
-                  <strong>Find an office</strong>
-                  <p>Search or tap an office name, then follow the orange route.</p>
+                  <strong>{t("findAnOffice")}</strong>
+                  <p>{t("officeHelp")}</p>
                 </div>
               </div>
             </div>
@@ -464,7 +608,7 @@ export default function App() {
               type="button"
               onClick={() => setIsTutorialVisible(false)}
             >
-              Start navigating
+              {t("startNavigating")}
             </button>
           </section>
         </div>
@@ -474,29 +618,31 @@ export default function App() {
           className="idle-warning"
           role="dialog"
           aria-modal="true"
-          aria-label="Still using the city hall navigator"
+          aria-label={t("idleDialog")}
           onPointerDown={restartIdleTimers}
         >
           <div className="idle-warning-panel">
             <span className="idle-warning-icon" aria-hidden="true">
               <TimerReset size={34} />
             </span>
-            <strong>Are you still there?</strong>
+            <strong>{t("stillThere")}</strong>
             <div
               className="idle-countdown-ring"
               role="timer"
               aria-live="polite"
-              aria-label={`${idleCountdownSeconds} seconds before returning to the landing page`}
+              aria-label={t("idleCountdown", {
+                seconds: idleCountdownSeconds,
+              })}
               style={{
                 "--idle-progress": `${(idleCountdownSeconds / IDLE_RETURN_SECONDS) * 360}deg`,
               }}
             >
               <span>{idleCountdownSeconds}</span>
-              <small>seconds</small>
+              <small>{t("seconds")}</small>
             </div>
-            <p>Touch anywhere to continue. No response will return this screen to the landing page.</p>
+            <p>{t("idleMessage")}</p>
             <button type="button" onClick={restartIdleTimers}>
-              Continue
+              {t("continue")}
             </button>
           </div>
         </div>

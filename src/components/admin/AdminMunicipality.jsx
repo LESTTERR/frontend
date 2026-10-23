@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   Building2,
+  Download,
+  FileText,
   Globe,
   ImagePlus,
   Palette,
@@ -8,7 +10,10 @@ import {
   Upload,
 } from "lucide-react";
 import useNavigatorConfig from "../../hooks/useNavigatorConfig.js";
-import { updateMunicipalityConfig } from "../../services/navigatorConfig.js";
+import {
+  exportNavigatorConfig,
+  updateMunicipalityConfig,
+} from "../../services/navigatorConfig.js";
 
 const ORGANIZATION_TYPES = [
   "City Government",
@@ -54,6 +59,7 @@ export default function AdminMunicipality() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [formError, setFormError] = useState("");
+  const [importError, setImportError] = useState("");
 
   useEffect(() => {
     setForm(createForm(config));
@@ -84,6 +90,57 @@ export default function AdminMunicipality() {
     }
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleExportConfig = () => {
+    const data = exportNavigatorConfig(config);
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `olongapo-navigator-config-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportConfig = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImportError("");
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if (
+        !imported ||
+        typeof imported !== "object" ||
+        Array.isArray(imported)
+      ) {
+        throw new Error("Invalid config file");
+      }
+      const required = ["cityName", "navigatorTitle", "offices", "floors"];
+      for (const key of required) {
+        if (!(key in imported)) {
+          throw new Error(`Config missing required field: ${key}`);
+        }
+      }
+      if (!saveConfig(imported)) {
+        setImportError(
+          "Unable to import. Storage may be full or unavailable.",
+        );
+        return;
+      }
+    } catch (error) {
+      setImportError(
+        error instanceof Error ? error.message : "Failed to import config.",
+      );
+    }
   };
 
   const handleBuildingModel = async (event) => {
@@ -432,6 +489,37 @@ export default function AdminMunicipality() {
           {formError ? <p className="admin-inline-error" role="alert">{formError}</p> : null}
           <div className="admin-local-storage-note">
             Files and settings are stored in this browser only. This is not a secure multi-user publishing system.
+          </div>
+
+          <h2 className="admin-section-title">
+            <Download size={18} aria-hidden="true" /> Export / Import
+          </h2>
+          <div className="admin-config-io">
+            <button
+              className="admin-btn admin-btn-secondary"
+              type="button"
+              onClick={handleExportConfig}
+            >
+              <Download size={16} aria-hidden="true" /> Export config
+            </button>
+            <label className="admin-btn admin-btn-secondary" htmlFor="import-config-file">
+              <FileText size={16} aria-hidden="true" /> Import config
+            </label>
+            <input
+              id="import-config-file"
+              className="visually-hidden"
+              type="file"
+              accept=".json"
+              onChange={handleImportConfig}
+            />
+            {importError ? (
+              <p className="admin-inline-error" role="alert">{importError}</p>
+            ) : null}
+            <small className="admin-config-io-note">
+              Export downloads this browser&apos;s settings, offices, floors, and route data as JSON.
+              Import replaces this browser&apos;s config. Uploaded GLB/logo binaries stay in the
+              browser that made them; re-upload those files after importing to another browser.
+            </small>
           </div>
 
           <div className="admin-modal-footer">
