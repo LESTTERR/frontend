@@ -533,7 +533,11 @@ export function exportNavigatorConfig(config) {
 }
 
 const ADMIN_PIN_CODE_KEY = "olongapo.admin.pin";
-const LEGACY_ADMIN_PIN = "CityHall2026";
+
+// DEFAULT_ADMIN_PIN is a client-side-only access code, not a real security
+// boundary. The PIN check, hash, and sessionStorage unlock flag all run in
+// shipped JavaScript and can be inspected or bypassed through browser
+// developer tools. Do not treat /admin as a trusted admin boundary.
 const DEFAULT_ADMIN_PIN = "admin123";
 
 export function getAdminPinCode() {
@@ -564,15 +568,10 @@ export async function unlockAdmin(pin) {
 
   const storedHash = safeReadStorage(ADMIN_PIN_CODE_KEY, "localStorage") || "";
   const candidateHash = await hashAdminPin(normalizedPin);
-  const legacyHash = await hashAdminPin(LEGACY_ADMIN_PIN);
   const expectedHash = storedHash || (await hashAdminPin(DEFAULT_ADMIN_PIN));
 
-  if (candidateHash !== expectedHash && candidateHash !== legacyHash) {
+  if (candidateHash !== expectedHash) {
     return false;
-  }
-
-  if (storedHash && candidateHash === legacyHash) {
-    await setAdminPinCode(DEFAULT_ADMIN_PIN);
   }
 
   safeWriteStorage("olongapo.admin.unlocked", "true", "sessionStorage");

@@ -1,0 +1,29 @@
+# Content-Security-Policy draft (REPORT-ONLY)
+#
+# This is a review draft, NOT yet deployed. A CSP will very likely break the
+# lazy-loaded Three.js bundle (GLTFLoader addon, OrbitControls, and the
+# three.module chunk) unless script-src/style-src are carefully scoped.
+# Deploy as Content-Security-Policy-Report-Only first, monitor violations,
+# then enforce once false positives are resolved.
+#
+# Suggested header: Content-Security-Policy-Report-Only: <policy>;
+#   report-uri /_vercel/csp-report (or an endpoint you operate)
+
+default-src 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data:;
+connect-src 'self';
+font-src 'self';
+object-src 'none';
+base-uri 'self';
+frame-ancestors 'self';
+
+# Notes / open questions before enforcing:
+# - three/addons/loaders/GLTFLoader.js and three/addons/controls/OrbitControls.js
+#   are imported via dynamic/relative paths from the three.module chunk.
+# - Vite may inject a runtime with inline scripts; 'unsafe-inline' may be needed
+#   for style (lucide/react, styled CSS) until moved to external assets.
+# - WebGL / WebGPU and canvas rendering do not require additional directives
+#   beyond the above, but worker blobs (if any) would need blob: in
+#   script-src/worker-src.
